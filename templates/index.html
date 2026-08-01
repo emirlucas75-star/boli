@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}VoleyTournament - Programación{% endblock %}
+
+{% block content %}
+<!-- Hero Banner or Placeholder -->
+{% if hero_banners %}
+<div class="hero-banner">
+    <img src="{{ url_for('static', filename='uploads/' + hero_banners[0].filename) }}" alt="{{ hero_banners[0].title or 'Torneo de Voleibol' }}">
+    {% if hero_banners[0].title %}
+    <div class="banner-overlay">
+        <h2>{{ hero_banners[0].title }}</h2>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="hero-placeholder">
+    <div class="hero-placeholder-content">
+        <div class="hero-icon">
+            <img src="/assets/voleibol.png" alt="" style="width: 64px; height: auto; margin-bottom: 12px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));">
+        </div>
+        <h1>Torneo de Voleibol</h1>
+        <p>Programación en vivo y resultados</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Sponsor Banner Carousel -->
+{% if sponsor_banners %}
+<div class="sponsor-carousel">
+    <div class="sponsor-carousel-inner">
+        {% for banner in sponsor_banners %}
+        <div class="sponsor-banner" data-index="{{ loop.index0 }}">
+            <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or 'Patrocinador' }}">
+        </div>
+        {% endfor %}
+    </div>
+    {% if sponsor_banners|length > 1 %}
+    <div class="carousel-controls">
+        <button class="carousel-dot" onclick="goToSlide(0)"></button>
+        {% for i in range(1, sponsor_banners|length) %}
+        <button class="carousel-dot" onclick="goToSlide({{ i }})"></button>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Search & Filter Bar -->
+<div class="search-section">
+    <button class="btn-search" id="btnFilter" onclick="toggleFilter()">
+        BUSCAR
+    </button>
+</div>
+
+<!-- Category Filter Modal -->
+<div class="filter-modal-overlay" id="filterModal">
+    <div class="filter-modal">
+        <h3>
+            FILTRAR
+            <button class="close-btn" onclick="toggleFilter()">✕</button>
+        </h3>
+        
+        <!-- Status Filters -->
+        <div style="margin-bottom: 12px; font-weight: 700; font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase;">Estado</div>
+        <select id="statusFilter" style="width: 100%; padding: 10px; margin-bottom: 16px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
+            <option value="all">Todos los estados</option>
+            <option value="pending">Pendientes</option>
+            <option value="active">En Vivo</option>
+            <option value="completed">Completados</option>
+        </select>
+
+        <!-- Category Filters -->
+        <div style="margin-bottom: 12px; font-weight: 700; font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase;">Categoría</div>
+        <select id="categoryFilter" style="width: 100%; padding: 10px; margin-bottom: 16px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
+            <option value="all">Todas las categorías</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+        </select>
+
+        <!-- Group Filters -->
+        <div style="margin-bottom: 12px; font-weight: 700; font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase;">Grupo</div>
+        <select id="groupFilter" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
+            <option value="all">Todos los grupos</option>
+            {% for grp in groups %}
+            <option value="{{ grp }}">{{ grp }}</option>
+            {% endfor %}
+        </select>
+
+        <button class="btn-primary" onclick="applyFilters()" style="width: 100%; border: none; padding: 12px; border-radius: var(--radius-md); font-weight: 700;">
+            Aplicar Filtros
+        </button>
+    </div>
+</div>
+
+<!-- Day Tabs (grouped by date) -->
+<div class="day-tabs" id="dayTabs">
+    <!-- Populated dynamically -->
+</div>
+
+<!-- Match Cards Feed -->
+<div class="matches-feed" id="matchesFeed">
+    {% if matches %}
+        {% set ns = namespace(current_date='', current_location='') %}
+        {% for match in matches %}
+            {% set match_date = match.date|spanish_date %}
+            {% if match_date != ns.current_date %}
+                {% set ns.current_date = match_date %}
+                {% set ns.current_location = '' %}
+                <div class="date-header" data-date="{{ match.date.strftime('%Y-%m-%d') }}">
+                    <h2>{{ match.date|spanish_date }}</h2>
+                </div>
+            {% endif %}
+
+            {% if match.location != ns.current_location %}
+                {% set ns.current_location = match.location %}
+                <div class="date-header" data-date="{{ match.date.strftime('%Y-%m-%d') }}">
+                    <h3>{{ match.location }}</h3>
+                </div>
+            {% endif %}
+
+            <div class="match-card" data-match-id="{{ match.id }}" data-status="{{ match.status }}" data-date="{{ match.date.strftime('%Y-%m-%d') }}"
+                 data-category="{{ match.category or '' }}" data-group="{{ match.group or '' }}">
+                <div class="match-card-header">
+                    <span class="category-badge cat-{{ match.status }}">
+                        {% if match.status == 'pending' %}Pendiente
+                        {% elif match.status == 'active' %}EN VIVO
+                        {% else %}Finalizado{% endif %}
+                    </span>
+                    {% if match.category or match.group %}
+                    <span style="background: var(--gray-100); color: var(--gray-700); padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.68rem; font-weight: 700; text-transform: uppercase;">
+                        {{ match.category or '—' }}{% if match.category and match.group %} - {% endif %}{{ match.group or '' }}
+                    </span>
+                    {% endif %}
+                    <span class="venue-label">{{ match.location }}</span>
+                </div>
+                <div class="match-card-body">
+                    <div class="match-team team-home">{{ match.home_team.name }}</div>
+                    {% if match.status == 'completed' and match.sets %}
+                        <div class="match-score">
+                            <span class="score" id="score1-{{ match.id }}">
+                                {{ match.sets|selectattr('completed')|selectattr('team1_points', 'gt', 0)|list|length }}
+                            </span>
+                            <span class="score-divider">-</span>
+                            <span class="score" id="score2-{{ match.id }}">
+                                {{ match.sets|selectattr('completed')|list|length - match.sets|selectattr('completed')|selectattr('team1_points', 'gt', 0)|list|length }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <div class="match-time">{{ match.date.strftime('%H:%M') }}</div>
+                    {% endif %}
+                    <div class="match-team team-away">{{ match.away_team.name }}</div>
+                </div>
+                <div class="match-card-footer">
+                    <span class="match-number">#{{ match.id }}</span>
+                    <span class="match-group">
+                        {% if match.referee %}Árbitro: {{ match.referee.username }}{% endif %}
+                    </span>
+                    <span class="status-indicator status-{{ match.status }}">
+                        {% if match.status == 'pending' %}Pendiente
+                        {% elif match.status == 'active' %}En Vivo
+                        {% else %}Completado{% endif %}
+                    </span>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="no-matches">
+            <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 48px; opacity: 0.5; margin-bottom: 12px;">
+            <p>No hay partidos programados aún</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Standings Preview -->
+<div class="stats-preview">
+    <h2>Tabla de Posiciones</h2>
+    <div id="standings-preview" style="overflow-x: auto;"></div>
+</div>
+
+<script>
+// Filter functionality
+function toggleFilter() {
+    const modal = document.getElementById('filterModal');
+    modal.classList.toggle('active');
+}
+
+function applyFilters() {
+    const status = document.getElementById('statusFilter').value;
+    const category = document.getElementById('categoryFilter').value;
+    const group = document.getElementById('groupFilter').value;
+
+    // First hide/show match cards
+    document.querySelectorAll('.match-card').forEach(card => {
+        const matchesStatus = status === 'all' || card.dataset.status === status;
+        const matchesCategory = category === 'all' || card.dataset.category === category;
+        const matchesGroup = group === 'all' || card.dataset.group === group;
+
+        if (matchesStatus && matchesCategory && matchesGroup) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    // Determine which dates have visible cards
+    const dates = new Set();
+    document.querySelectorAll('.match-card').forEach(card => {
+        if (card.style.display !== 'none') {
+            dates.add(card.dataset.date);
+        }
+    });
+
+    // Toggle date headers and location headers
+    document.querySelectorAll('.date-header').forEach(header => {
+        const date = header.dataset.date;
+        if (dates.has(date)) {
+            if (header.querySelector('h3')) {
+                // Location subheader
+                const locationName = header.querySelector('h3').textContent.trim();
+                let hasMatch = false;
+                let next = header.nextElementSibling;
+                while (next && !next.classList.contains('date-header')) {
+                    if (next.classList.contains('match-card') && next.style.display !== 'none' && next.querySelector('.venue-label').textContent.trim() === locationName) {
+                        hasMatch = true;
+                        break;
+                    }
+                    next = next.nextElementSibling;
+                }
+                header.style.display = hasMatch ? '' : 'none';
+            } else {
+                // Date header
+                header.style.display = '';
+            }
+        } else {
+            header.style.display = 'none';
+        }
+    });
+
+    toggleFilter();
+}
+
+// Day tabs
+function buildDayTabs() {
+    const dateHeaders = document.querySelectorAll('.date-header[data-date]');
+    const tabsContainer = document.getElementById('dayTabs');
+    tabsContainer.innerHTML = '';
+    const seenDates = new Set();
+
+    dateHeaders.forEach(header => {
+        if (header.querySelector('h3')) return; // skip location headers
+        
+        const date = header.dataset.date;
+        if (seenDates.has(date)) return;
+        seenDates.add(date);
+
+        const d = new Date(date + 'T12:00:00');
+        const dayNames = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+        const dayName = dayNames[d.getDay()];
+        const dayNum = d.getDate();
+
+        const tab = document.createElement('div');
+        tab.className = 'day-tab' + (seenDates.size === 1 ? ' active' : '');
+        tab.innerHTML = `<small>${dayNum}</small>${dayName}`;
+        tab.onclick = () => scrollToDate(date, tab);
+        tabsContainer.appendChild(tab);
+    });
+}
+
+function scrollToDate(date, tabEl) {
+    document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+
+    const target = document.querySelector(`.date-header[data-date="${date}"]:not(:has(h3))`);
+    if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// Standings
+function updateStandings() {
+    fetch('/standings')
+        .then(response => response.json())
+        .then(data => {
+            const preview = document.getElementById('standings-preview');
+            if (!data.length) {
+                preview.innerHTML = '<p style="text-align:center;color:#9CA3AF;padding:16px;">No hay equipos registrados aún</p>';
+                return;
+            }
+            
+            // Group by category, and then group
+            const grouped = {};
+            data.forEach(team => {
+                const cat = team.category || 'Sin Categoría';
+                const grp = team.group || 'Sin Grupo';
+                if (!grouped[cat]) grouped[cat] = {};
+                if (!grouped[cat][grp]) grouped[cat][grp] = [];
+                grouped[cat][grp].push(team);
+            });
+            
+            let html = '';
+            for (const [cat, groups] of Object.entries(grouped)) {
+                html += `<h3 style="font-family:'Outfit',sans-serif; font-size:1.2rem; font-weight:800; color:var(--primary); margin:24px 0 10px; border-bottom: 2px solid var(--primary); padding-bottom: 6px;">Categoría: ${cat}</h3>`;
+                for (const [grp, teams] of Object.entries(groups)) {
+                    html += `<h4 style="font-family:'Outfit',sans-serif; font-size:0.95rem; font-weight:700; color:var(--dark); margin:12px 0; display:flex; align-items:center; gap:6px;"><span style="width:6px; height:6px; border-radius:50%; background:var(--secondary);"></span>${grp}</h4>`;
+                    html += '<table style="margin-bottom: 20px;"><thead><tr><th>#</th><th>Equipo</th><th>Pts</th><th>V</th><th>D</th><th>SF</th><th>SC</th></tr></thead><tbody>';
+                    teams.forEach((team, i) => {
+                        html += `<tr>
+                            <td><strong>${i + 1}</strong></td>
+                            <td><strong>${team.name}</strong></td>
+                            <td><strong style="color:var(--primary)">${team.points}</strong></td>
+                            <td>${team.wins}</td>
+                            <td>${team.losses}</td>
+                            <td>${team.sets_won}</td>
+                            <td>${team.sets_lost}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                }
+            }
+            preview.innerHTML = html;
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+    buildDayTabs();
+    updateStandings();
+    setInterval(updateStandings, 5000);
+});
+
+// Close filter on overlay click
+document.getElementById('filterModal').addEventListener('click', function(e) {
+    if (e.target === this) toggleFilter();
+});
+</script>
+{% endblock %}

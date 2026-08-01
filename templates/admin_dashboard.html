@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}Panel de Administración - VoleyTournament{% endblock %}
+
+{% block content %}
+<div style="padding: 20px 16px 8px;">
+    <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 900; color: var(--dark);">Panel Admin</h1>
+    <p style="font-size: 0.85rem; color: var(--gray-500); margin-top: 4px;">Bienvenido, <strong>{{ current_user.username }}</strong></p>
+</div>
+
+<div class="admin-dashboard">
+
+    <!-- ===== GESTIÓN DE IMÁGENES / BANNERS ===== -->
+    <div class="admin-section banner-management">
+        <h2>Gestión de Imágenes</h2>
+        <p style="font-size: 0.85rem; color: var(--gray-500); margin-bottom: 20px;">
+            Sube imágenes para el <strong>banner principal</strong> (hero) y <strong>banners de patrocinadores</strong> que se muestran en la programación pública.
+        </p>
+
+        <!-- Upload form -->
+        <div style="background: var(--gray-50); border-radius: var(--radius-lg); padding: 20px; border: 2px dashed var(--gray-200); margin-bottom: 20px;" id="uploadZone">
+            <form id="uploadBannerForm" enctype="multipart/form-data">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Tipo de imagen</label>
+                        <select name="image_type" id="bannerType">
+                            <option value="hero">Banner principal (hero)</option>
+                            <option value="sponsor">Patrocinador / sponsor</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Título (opcional)</label>
+                        <input type="text" name="title" placeholder="Ej: Selectivo Estatal 2026">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>Posición (orden)</label>
+                    <input type="number" name="position" value="0" min="0" max="99">
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="display:block; font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--gray-700); margin-bottom:8px;">Imagen</label>
+                    <input type="file" name="image" id="bannerFile" accept="image/*"
+                           style="width:100%; padding: 10px; border: 2px solid var(--gray-200); border-radius: var(--radius-md); font-size: 0.9rem; cursor: pointer; background: white;">
+                    <p style="font-size:0.72rem; color:var(--gray-400); margin-top:4px;">PNG, JPG, WEBP, GIF — máx 16MB</p>
+                </div>
+                <button type="submit" class="btn-primary">Subir Imagen</button>
+            </form>
+            <div id="uploadResult" style="margin-top: 12px; display: none;"></div>
+        </div>
+
+        <!-- Image preview on upload -->
+        <div id="imagePreview" style="display:none; margin-bottom: 16px; text-align:center;">
+            <img id="previewImg" src="" alt="preview" style="max-height: 160px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">
+        </div>
+
+        <!-- Existing banners -->
+        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--dark);">
+            Imágenes actuales
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--gray-400); margin-left: 8px;">({{ banners|length }} imagen{% if banners|length != 1 %}es{% endif %})</span>
+        </h3>
+
+        {% if banners %}
+        <div class="banners-grid" id="bannersGrid">
+            {% for banner in banners %}
+            <div class="banner-card {% if not banner.active %}banner-inactive{% endif %}" id="bannerCard-{{ banner.id }}">
+                <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or banner.image_type }}">
+                <div class="banner-card-info">
+                    <div class="banner-type">
+                        {% if banner.image_type == 'hero' %}Hero{% else %}Sponsor{% endif %}
+                        · #{{ banner.position }}
+                    </div>
+                    <div class="banner-title">{{ banner.title or 'Sin título' }}</div>
+                    <div style="font-size: 0.7rem; color: {% if banner.active %}var(--success){% else %}var(--gray-400){% endif %}; font-weight: 700; margin-bottom: 6px;">
+                        {% if banner.active %}● Activo{% else %}○ Inactivo{% endif %}
+                    </div>
+                    <div class="banner-card-actions">
+                        <button class="btn-success" onclick="toggleBanner({{ banner.id }})">
+                            {% if banner.active %}Desactivar{% else %}Activar{% endif %}
+                        </button>
+                        <button class="btn-danger" onclick="deleteBanner({{ banner.id }})">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 32px; color: var(--gray-400); background: var(--gray-50); border-radius: var(--radius-lg);">
+            <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 48px; opacity: 0.5; margin-bottom: 12px;">
+            <p style="font-weight: 600;">No hay imágenes subidas aún</p>
+            <p style="font-size: 0.8rem; margin-top: 4px;">Sube una imagen de banner para el torneo</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ===== CREAR USUARIO ===== -->
+    <div class="admin-section">
+        <h2>Crear Usuario</h2>
+        <form id="createUserForm" class="admin-form">
+            <div class="form-group">
+                <label>Usuario</label>
+                <input type="text" name="username" placeholder="nombre_usuario" required>
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" name="password" placeholder="••••••••" required>
+            </div>
+            <div class="form-group">
+                <label>Rol</label>
+                <select name="role" id="userRole">
+                    <option value="team">Equipo</option>
+                    <option value="referee">Árbitro</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+            <div class="form-group" id="teamSelectGroup">
+                <label>Equipo</label>
+                <select name="team_id">
+                    <option value="">Seleccionar equipo...</option>
+                    {% for team in teams %}
+                        <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn-primary">Crear Usuario</button>
+        </form>
+    </div>
+
+    <!-- ===== CREAR EQUIPO ===== -->
+    <div class="admin-section">
+        <h2>Crear Equipo</h2>
+        <form id="createTeamForm" class="admin-form">
+            <div class="form-group">
+                <label>Nombre del equipo</label>
+                <input type="text" name="name" placeholder="Ej: Veracruz A" required>
+            </div>
+            <div class="form-group">
+                <label>Entrenador</label>
+                <input type="text" name="coach" placeholder="Nombre del entrenador" required>
+            </div>
+            <div class="form-group">
+                <label>Categoría</label>
+                <select name="category" id="teamCategory" onchange="toggleCustomCategory(this)">
+                    <option value="Femenil">Femenil</option>
+                    <option value="Varonil">Varonil</option>
+                    <option value="Mixto">Mixto</option>
+                    <option value="Libre">Libre</option>
+                    <option value="Otro">Otro...</option>
+                </select>
+                <input type="text" name="custom_category" id="customCategory" placeholder="Escribe la categoría..." style="display:none; margin-top:8px;">
+            </div>
+            <div class="form-group">
+                <label>Grupo</label>
+                <input type="text" name="group" placeholder="Ej: Grupo A, Grupo B (Opcional)">
+            </div>
+            <button type="submit" class="btn-primary">Crear Equipo</button>
+        </form>
+    </div>
+
+    <!-- ===== AGREGAR JUGADOR ===== -->
+    <div class="admin-section">
+        <h2>Agregar Jugador</h2>
+        <form id="addPlayerForm" class="admin-form">
+            <div class="form-group">
+                <label>Equipo</label>
+                <select name="team_id" required>
+                    <option value="">Seleccionar equipo...</option>
+                    {% for team in teams %}
+                        <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Nombre</label>
+                <input type="text" name="name" placeholder="Nombre del jugador" required>
+            </div>
+            <div class="form-group">
+                <label>Número</label>
+                <input type="number" name="number" placeholder="# de camiseta" required>
+            </div>
+            <div class="form-group">
+                <label>Posición</label>
+                <input type="text" name="position" placeholder="Ej: Libero, Central...">
+            </div>
+            <button type="submit" class="btn-primary">Agregar Jugador</button>
+        </form>
+    </div>
+
+    <!-- ===== PROGRAMAR PARTIDO ===== -->
+    <div class="admin-section">
+        <h2>Programar Partido</h2>
+        <form id="createMatchForm" class="admin-form">
+            <div class="form-group">
+                <label>Equipo Local</label>
+                <select name="team1_id" id="matchTeam1" onchange="autoFillMatchDetails()" required>
+                    <option value="">Seleccionar equipo...</option>
+                    {% for team in teams %}
+                        <option value="{{ team.id }}" data-category="{{ team.category or '' }}" data-group="{{ team.group or '' }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Equipo Visitante</label>
+                <select name="team2_id" id="matchTeam2" required>
+                    <option value="">Seleccionar equipo...</option>
+                    {% for team in teams %}
+                        <option value="{{ team.id }}" data-category="{{ team.category or '' }}" data-group="{{ team.group or '' }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Categoría</label>
+                <input type="text" name="category" id="matchCategory" placeholder="Ej: Femenil (se auto-llena)">
+            </div>
+            <div class="form-group">
+                <label>Grupo</label>
+                <input type="text" name="group" id="matchGroup" placeholder="Ej: Grupo A (se auto-llena)">
+            </div>
+            <div class="form-group">
+                <label>Fecha y Hora</label>
+                <input type="datetime-local" name="date" required>
+            </div>
+            <div class="form-group">
+                <label>Lugar / Foro</label>
+                <input type="text" name="location" placeholder="Ej: Foro Boca 1">
+            </div>
+            <div class="form-group">
+                <label>Árbitro</label>
+                <select name="referee_id" required>
+                    <option value="">Seleccionar árbitro...</option>
+                    {% for user in users if user.role == 'referee' %}
+                        <option value="{{ user.id }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn-primary">Programar Partido</button>
+        </form>
+    </div>
+
+    <!-- ===== PARTIDOS PROGRAMADOS ===== -->
+    <div class="admin-section" style="grid-column: 1 / -1;">
+        <h2>Partidos Programados</h2>
+        {% if matches %}
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Fecha</th>
+                        <th>Local</th>
+                        <th>Visitante</th>
+                        <th>Lugar</th>
+                        <th>Categoría / Grupo</th>
+                        <th>Árbitro</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="matchesTableBody">
+                    {% for match in matches %}
+                    <tr data-match-id="{{ match.id }}">
+                        <td style="color:var(--gray-400);">#{{ match.id }}</td>
+                        <td>{{ match.date.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td><strong>{{ match.home_team.name }}</strong></td>
+                        <td><strong>{{ match.away_team.name }}</strong></td>
+                        <td style="color:var(--gray-500);">{{ match.location }}</td>
+                        <td>
+                            {% if match.category or match.group %}
+                                {{ match.category or '—' }} / {{ match.group or '—' }}
+                            {% else %}
+                                <span style="color:var(--gray-400);">Sin definir</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ match.referee.username if match.referee else '<span style="color:var(--gray-400);">No asignado</span>' }}</td>
+                        <td>
+                            <span class="status-badge status-{{ match.status }}">{{ match.status }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding: 32px; color: var(--gray-400);">
+            <p>No hay partidos programados aún</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+// ==== BANNER IMAGE MANAGEMENT ====
+// Preview before upload
+document.getElementById('bannerFile').addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById('previewImg').src = e.target.result;
+            document.getElementById('imagePreview').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// Upload banner
+document.getElementById('uploadBannerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const btn = this.querySelector('[type=submit]');
+    btn.textContent = '⏳ Subiendo...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/admin/upload_banner', { method: 'POST', body: formData });
+        const result = await response.json();
+        const resultDiv = document.getElementById('uploadResult');
+        resultDiv.style.display = 'block';
+        if (result.success) {
+            resultDiv.innerHTML = '<div style="background:rgba(16,185,129,0.1);color:var(--success);padding:10px;border-radius:8px;font-weight:600;">✅ Imagen subida exitosamente</div>';
+            this.reset();
+            document.getElementById('imagePreview').style.display = 'none';
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            resultDiv.innerHTML = `<div style="background:rgba(239,68,68,0.1);color:var(--danger);padding:10px;border-radius:8px;font-weight:600;">❌ Error: ${result.error}</div>`;
+        }
+    } catch(err) {
+        console.error(err);
+    }
+    btn.textContent = '⬆️ Subir Imagen';
+    btn.disabled = false;
+});
+
+// Delete banner
+async function deleteBanner(id) {
+    if (!confirm('¿Eliminar esta imagen?')) return;
+    const response = await fetch(`/admin/delete_banner/${id}`, { method: 'POST' });
+    const result = await response.json();
+    if (result.success) {
+        const card = document.getElementById(`bannerCard-${id}`);
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.9)';
+        card.style.transition = 'all 0.3s ease';
+        setTimeout(() => card.remove(), 300);
+    }
+}
+
+// Toggle banner active/inactive
+async function toggleBanner(id) {
+    const response = await fetch(`/admin/toggle_banner/${id}`, { method: 'POST' });
+    const result = await response.json();
+    if (result.success) {
+        setTimeout(() => location.reload(), 400);
+    }
+}
+
+// ==== USER ROLE - SHOW/HIDE TEAM ====
+document.getElementById('userRole').addEventListener('change', function() {
+    const teamSelect = document.getElementById('teamSelectGroup');
+    teamSelect.style.display = this.value === 'team' ? 'block' : 'none';
+});
+// Initial state
+document.getElementById('teamSelectGroup').style.display = 'block';
+
+function toggleCustomCategory(select) {
+    const customInput = document.getElementById('customCategory');
+    if (select.value === 'Otro') {
+        customInput.style.display = 'block';
+        customInput.required = true;
+    } else {
+        customInput.style.display = 'none';
+        customInput.required = false;
+    }
+}
+
+function autoFillMatchDetails() {
+    const t1 = document.getElementById('matchTeam1');
+    const opt = t1.options[t1.selectedIndex];
+    if (opt && opt.value) {
+        const cat = opt.dataset.category || '';
+        const grp = opt.dataset.group || '';
+        document.getElementById('matchCategory').value = cat;
+        document.getElementById('matchGroup').value = grp;
+    }
+}
+
+// ==== FORM SUBMISSIONS ====
+document.getElementById('createUserForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const response = await fetch('/admin/create_user', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast('✅ Usuario creado exitosamente');
+        this.reset();
+    } else {
+        showToast('❌ Error: ' + result.error, true);
+    }
+});
+
+document.getElementById('createTeamForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const response = await fetch('/admin/create_team', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast('✅ Equipo creado exitosamente');
+        this.reset();
+        setTimeout(() => location.reload(), 1000);
+    } else {
+        showToast('❌ Error: ' + result.error, true);
+    }
+});
+
+document.getElementById('addPlayerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const response = await fetch('/admin/add_player', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast('✅ Jugador agregado exitosamente');
+        this.reset();
+    } else {
+        showToast('❌ Error: ' + result.error, true);
+    }
+});
+
+document.getElementById('createMatchForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const response = await fetch('/admin/create_match', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast('✅ Partido programado exitosamente');
+        this.reset();
+        setTimeout(() => location.reload(), 1000);
+    } else {
+        showToast('❌ Error: ' + result.error, true);
+    }
+});
+
+// ==== TOAST NOTIFICATION ====
+function showToast(message, isError = false) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+        background: ${isError ? 'var(--danger)' : 'var(--success)'}; color: white;
+        padding: 14px 24px; border-radius: 12px; font-weight: 700; font-size: 0.9rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 9999;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.style.transform = 'translateX(-50%) translateY(0)', 10);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+</script>
+{% endblock %}

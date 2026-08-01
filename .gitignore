@@ -1,0 +1,22 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.env
+.env.local
+instance/
+*.db
+.idea/
+.vscode/
+
+# Capturas de pantalla locales
+1.PNG
+2.PNG
+3.PNG
+4.PNG
+5.PNG
+
+# Uploads se quedan en el VPS
+static/uploads/*
+!static/uploads/.gitkeep

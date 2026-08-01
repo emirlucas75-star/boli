@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Ingresar - VoleyTournament{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div style="text-align:center; margin-bottom: 28px;">
+        <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 64px; height: auto; margin-bottom: 12px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.1));">
+        <h2>Bienvenido</h2>
+        <p style="color: var(--gray-500); font-size: 0.85rem; margin-top: 4px;">Ingresa a tu cuenta</p>
+    </div>
+    <form method="POST" action="{{ url_for('login') }}" class="login-form">
+        <div class="form-group">
+            <label for="username">Usuario</label>
+            <input type="text" id="username" name="username" placeholder="Tu nombre de usuario" required autocomplete="username">
+        </div>
+        <div class="form-group">
+            <label for="password">Contraseña</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-primary">Ingresar →</button>
+    </form>
+    <p style="text-align:center; margin-top: 20px; font-size: 0.8rem; color: var(--gray-400);">
+        <a href="{{ url_for('index') }}" style="color: var(--primary); text-decoration: none; font-weight: 600;">← Ver programación pública</a>
+    </p>
+</div>
+{% endblock %}

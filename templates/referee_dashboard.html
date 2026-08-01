@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Mis Partidos - Árbitro{% endblock %}
+
+{% block content %}
+<div class="referee-dashboard">
+    <h1>Mis Partidos</h1>
+    <p style="padding: 0 16px 16px; font-size: 0.85rem; color: var(--gray-500);">Árbitro: <strong>{{ current_user.username }}</strong></p>
+
+    {% if matches %}
+    <div class="matches-feed" style="padding-bottom: 0;">
+        {% for match in matches %}
+        <div class="match-card" data-match-id="{{ match.id }}" data-status="{{ match.status }}">
+            <div class="match-card-header">
+                <span class="category-badge cat-{{ match.status }}">
+                    {% if match.status == 'pending' %}Pendiente
+                    {% elif match.status == 'active' %}EN VIVO
+                    {% else %}Finalizado{% endif %}
+                </span>
+                <span class="venue-label">{{ match.location }}</span>
+            </div>
+            <div class="match-card-body">
+                <div class="match-team team-home">{{ match.home_team.name }}</div>
+                {% if match.status in ['active', 'completed'] %}
+                    <div class="match-score">
+                        {% set sets1 = match.sets | selectattr('completed') | selectattr('team1_points', 'greaterthan', 0) | list | length %}
+                        {% set sets_total = match.sets | selectattr('completed') | list | length %}
+                        <span class="score">{{ sets1 }}</span>
+                        <span class="score-divider">–</span>
+                        <span class="score">{{ sets_total - sets1 }}</span>
+                    </div>
+                {% else %}
+                    <div class="match-time">{{ match.date.strftime('%H:%M') }}</div>
+                {% endif %}
+                <div class="match-team team-away">{{ match.away_team.name }}</div>
+            </div>
+            <div class="match-card-footer">
+                <span class="match-number">{{ match.date.strftime('%d/%m/%Y') }}</span>
+                <span class="match-group"></span>
+                <a href="{{ url_for('match_scoreboard', match_id=match.id) }}"
+                   style="background: var(--primary); color: white; padding: 6px 14px; border-radius: var(--radius-md); font-size: 0.75rem; font-weight: 700; text-decoration: none; text-transform: uppercase; letter-spacing: 0.3px;">
+                    Gestionar →
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-matches">
+        <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 48px; opacity: 0.5; margin-bottom: 12px;">
+        <p>No tienes partidos asignados</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function updateMatchesStatus() {
+    const cards = document.querySelectorAll('.match-card[data-match-id]');
+    for (const card of cards) {
+        try {
+            const matchId = card.getAttribute('data-match-id');
+            const response = await fetch(`/api/match/${matchId}`);
+            const data = await response.json();
+            card.dataset.status = data.status;
+            const badge = card.querySelector('.category-badge');
+            if (badge) {
+                badge.className = `category-badge cat-${data.status}`;
+                badge.textContent = data.status === 'pending' ? 'Pendiente' : data.status === 'active' ? 'EN VIVO' : 'Finalizado';
+            }
+        } catch(e) {}
+    }
+}
+document.addEventListener('DOMContentLoaded', () => setInterval(updateMatchesStatus, 5000));
+</script>
+{% endblock %}

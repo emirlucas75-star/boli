@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Sistema de gestión de torneos de voleibol - Programación, clasificación y resultados en tiempo real">
+    <meta name="theme-color" content="#0F172A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>{% block title %}VoleyTournament{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="{{ url_for('index') }}">VoleyTournament</a>
+            </div>
+            <div class="nav-menu" id="navMenu">
+                <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Programación</a>
+                <a href="{{ url_for('teams') }}" class="{% if request.endpoint == 'teams' %}active{% endif %}">Clasificación</a>
+                <a href="{{ url_for('matches') }}" class="{% if request.endpoint == 'matches' %}active{% endif %}">Partidos</a>
+                {% if current_user.is_authenticated %}
+                    {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">Panel Admin</a>
+                    {% elif current_user.role == 'team' %}
+                        <a href="{{ url_for('team_dashboard') }}" class="{% if request.endpoint == 'team_dashboard' %}active{% endif %}">Mi Equipo</a>
+                    {% elif current_user.role == 'referee' %}
+                        <a href="{{ url_for('referee_dashboard') }}" class="{% if request.endpoint == 'referee_dashboard' %}active{% endif %}">Mis Partidos</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}">Salir</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Ingresar</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert">
+                        <img src="/assets/pelota-de-voleibol.png" style="width: 16px; height: 16px; filter: brightness(0) invert(1);" alt="">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+        <strong>VoleyTournament</strong> — Sistema de Gestión de Torneos
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: boli_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boli
+      POSTGRES_PASSWORD: boli_secret
+      POSTGRES_DB: boli_tournament
+    # Puerto host 15432 (evita conflicto con 5432)
+    ports:
+      - "15432:5432"
+    volumes:
+      - boli_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boli -d boli_tournament"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    container_name: boli_web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: change-me-in-production
+      DATABASE_URL: postgresql+psycopg2://boli:boli_secret@db:5432/boli_tournament
+      PORT: "7500"
+      FLASK_DEBUG: "0"
+    # Puerto host 7500 (evita conflicto con 5000)
+    ports:
+      - "7500:7500"
+    volumes:
+      - ./static/uploads:/app/static/uploads
+
+volumes:
+  boli_pgdata:

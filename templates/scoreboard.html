@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}Marcador - {{ match.home_team.name }} vs {{ match.away_team.name }}{% endblock %}
+
+{% block content %}
+<div class="scoreboard-container" data-match-id="{{ match.id }}">
+
+    <!-- Match Header -->
+    <div style="text-align: center; margin-bottom: 8px;">
+        <span class="status-badge status-{{ match.status }}" id="matchStatusBadge" style="margin: 0 auto;">
+            {% if match.status == 'pending' %}Pendiente
+            {% elif match.status == 'active' %}EN VIVO
+            {% else %}Finalizado{% endif %}
+        </span>
+    </div>
+
+    <h1>Marcador</h1>
+
+    <!-- Teams -->
+    <div class="match-info">
+        <div class="teams">
+            <div class="team" style="text-align: right;">{{ match.home_team.name }}</div>
+            <div class="vs">VS</div>
+            <div class="team" style="text-align: left;">{{ match.away_team.name }}</div>
+        </div>
+
+        <!-- Sets summary -->
+        <div style="display: flex; justify-content: center; align-items: center; gap: 16px; margin: 8px 0;">
+            <div style="text-align: center;">
+                <span id="totalSets1" style="font-size: 2rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--primary);">0</span>
+                <span style="font-size: 1.5rem; font-weight: 900; color: var(--gray-300); margin: 0 8px;">–</span>
+                <span id="totalSets2" style="font-size: 2rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--primary);">0</span>
+            </div>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--gray-400); text-align:center;">Sets ganados</p>
+
+        <div class="details">
+            <p>Ubicación: {{ match.location }}</p>
+            <p>Fecha: {{ match.date.strftime('%d/%m/%Y %H:%M') }}</p>
+            <p>Árbitro: {{ match.referee.username }}</p>
+        </div>
+    </div>
+
+    <!-- Winner Banner -->
+    {% if match.winner_id and match.winner %}
+    <div style="background: linear-gradient(135deg, var(--warning), var(--primary)); color: white; padding: 16px; border-radius: var(--radius-lg); text-align: center; margin-bottom: 20px;">
+        <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 32px; filter: brightness(0) invert(1); margin-bottom: 4px;">
+        <p style="font-size: 1rem; font-weight: 800; font-family: 'Outfit', sans-serif;">GANADOR: {{ match.winner.name }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Sets -->
+    <div class="scoreboard">
+        <div class="sets-container" id="setsContainer">
+            {% for set in match.sets %}
+            <div class="set-card {% if set.completed %}set-done{% endif %}" data-set="{{ set.set_number }}">
+                <h3>Set {{ set.set_number }} {% if set.completed %}(Completado){% endif %}</h3>
+                <div class="points">
+                    <div class="team-points">
+                        <span class="team-name">{{ match.home_team.name }}</span>
+                        <input type="number" class="team1-points" value="{{ set.team1_points }}" min="0" max="99"
+                               {% if match.status == 'completed' %}disabled{% endif %}>
+                    </div>
+                    <div style="display:flex; align-items:center; padding: 0 12px; font-size: 1.2rem; color: var(--gray-300);">–</div>
+                    <div class="team-points">
+                        <span class="team-name">{{ match.away_team.name }}</span>
+                        <input type="number" class="team2-points" value="{{ set.team2_points }}" min="0" max="99"
+                               {% if match.status == 'completed' %}disabled{% endif %}>
+                    </div>
+                </div>
+                {% if match.status != 'completed' %}
+                <label class="set-completed">
+                    <input type="checkbox" class="set-completed-checkbox" {% if set.completed %}checked{% endif %}>
+                    Set completado
+                </label>
+                <button class="btn-update-set" data-match-id="{{ match.id }}" data-set-number="{{ set.set_number }}">
+                    Actualizar Set
+                </button>
+                {% else %}
+                <div style="text-align:center; font-size:0.75rem; color:var(--gray-400); margin-top:8px; font-weight:600;">
+                    {% if set.team1_points > set.team2_points %}
+                        Ganó {{ match.home_team.name }}
+                    {% elif set.team2_points > set.team1_points %}
+                        Ganó {{ match.away_team.name }}
+                    {% else %}
+                        Empate
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            {% if match.sets|length < 5 and match.status != 'completed' %}
+            <div class="set-card new-set">
+                <h3>Nuevo Set</h3>
+                <div class="points">
+                    <div class="team-points">
+                        <span class="team-name">{{ match.home_team.name }}</span>
+                        <input type="number" id="newTeam1Points" value="0" min="0" max="99">
+                    </div>
+                    <div style="display:flex; align-items:center; padding: 0 12px; font-size: 1.2rem; color: var(--gray-300);">–</div>
+                    <div class="team-points">
+                        <span class="team-name">{{ match.away_team.name }}</span>
+                        <input type="number" id="newTeam2Points" value="0" min="0" max="99">
+                    </div>
+                </div>
+                <label class="set-completed">
+                    <input type="checkbox" id="newSetCompleted">
+                    Set completado
+                </label>
+                <button class="btn-primary" id="addSetBtn" data-match-id="{{ match.id }}">
+                    Agregar Set
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Match Status Panel -->
+        <div class="match-status">
+            <h3>Estado del Partido</h3>
+            <p style="margin: 8px 0; font-size:0.85rem;">Estado: <span id="matchStatus" class="status-badge status-{{ match.status }}">{{ match.status }}</span></p>
+            <div id="winnerInfo" style="margin: 8px 0;">
+                {% if match.winner_id and match.winner %}
+                <p style="font-size:0.9rem;">Ganador: <strong id="winnerName">{{ match.winner.name }}</strong></p>
+                {% elif match.status == 'completed' %}
+                <p style="font-size:0.9rem;">Ganador: <strong id="winnerName">Por definir</strong></p>
+                {% else %}
+                <p style="font-size:0.9rem; color:var(--gray-400);">Ganador: <span id="winnerName">—</span></p>
+                {% endif %}
+            </div>
+            {% if match.status != 'completed' %}
+            <button id="completeMatchBtn" class="btn-primary" data-match-id="{{ match.id }}"
+                    style="margin-top: 12px; background: linear-gradient(135deg, var(--success), var(--primary));">
+                Finalizar Partido
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+let CURRENT_MATCH_ID = null;
+
+function updateSetTotals(sets) {
+    let s1 = 0, s2 = 0;
+    sets.forEach(s => {
+        if (s.completed) {
+            if (s.team1_points > s.team2_points) s1++;
+            else if (s.team2_points > s.team1_points) s2++;
+        }
+    });
+    document.getElementById('totalSets1').textContent = s1;
+    document.getElementById('totalSets2').textContent = s2;
+}
+
+async function updateSet(matchId, setNumber) {
+    const setCard = document.querySelector(`.set-card[data-set="${setNumber}"]`);
+    const team1Points = setCard.querySelector('.team1-points').value;
+    const team2Points = setCard.querySelector('.team2-points').value;
+    const completed = setCard.querySelector('.set-completed-checkbox').checked;
+
+    const btn = setCard.querySelector('.btn-update-set');
+    btn.textContent = '⏳ Guardando...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/referee/update_score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ match_id: matchId, set_number: setNumber, team1_points: parseInt(team1Points), team2_points: parseInt(team2Points), completed })
+        });
+        const result = await response.json();
+        if (result.success) {
+            btn.textContent = '✅ Guardado';
+            setTimeout(() => {
+                btn.textContent = 'Actualizar Set';
+                btn.disabled = false;
+            }, 1500);
+            updateMatchStatus();
+        } else {
+            btn.textContent = '❌ Error';
+            btn.disabled = false;
+        }
+    } catch(e) {
+        btn.textContent = 'Actualizar Set';
+        btn.disabled = false;
+    }
+}
+
+async function addSet(matchId) {
+    const setsCount = document.querySelectorAll('.set-card:not(.new-set)').length;
+    const newSetNumber = setsCount + 1;
+    const team1Points = document.getElementById('newTeam1Points').value;
+    const team2Points = document.getElementById('newTeam2Points').value;
+    const completed = document.getElementById('newSetCompleted').checked;
+
+    const response = await fetch('/referee/update_score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: matchId, set_number: newSetNumber, team1_points: parseInt(team1Points), team2_points: parseInt(team2Points), completed })
+    });
+    const result = await response.json();
+    if (result.success) {
+        location.reload();
+    }
+}
+
+async function completeMatch(matchId) {
+    if (!confirm('¿Marcar este partido como finalizado?')) return;
+    const btn = document.getElementById('completeMatchBtn');
+    btn.textContent = '⏳ Finalizando...';
+    btn.disabled = true;
+
+    const response = await fetch('/referee/complete_match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: matchId })
+    });
+    const result = await response.json();
+    if (result.success) {
+        location.reload();
+    } else {
+        btn.textContent = '🏁 Finalizar Partido';
+        btn.disabled = false;
+    }
+}
+
+async function updateMatchStatus() {
+    if (!CURRENT_MATCH_ID) return;
+    try {
+        const response = await fetch(`/api/match/${CURRENT_MATCH_ID}`);
+        const data = await response.json();
+
+        const statusEl = document.getElementById('matchStatus');
+        if (statusEl) {
+            statusEl.className = `status-badge status-${data.status}`;
+            statusEl.textContent = data.status;
+        }
+
+        const winnerEl = document.getElementById('winnerName');
+        if (winnerEl) {
+            winnerEl.textContent = data.winner_name || (data.status === 'completed' ? 'Por definir' : '—');
+        }
+
+        const completeBtn = document.getElementById('completeMatchBtn');
+        if (completeBtn && data.status === 'completed') {
+            completeBtn.style.display = 'none';
+        }
+
+        if (data.sets) {
+            updateSetTotals(data.sets);
+            data.sets.forEach(setData => {
+                const setCard = document.querySelector(`.set-card[data-set="${setData.set_number}"]`);
+                if (setCard) {
+                    const t1 = setCard.querySelector('.team1-points');
+                    const t2 = setCard.querySelector('.team2-points');
+                    const cb = setCard.querySelector('.set-completed-checkbox');
+                    if (t1) t1.value = setData.team1_points;
+                    if (t2) t2.value = setData.team2_points;
+                    if (cb) cb.checked = setData.completed;
+                }
+            });
+            updateSetTotals(data.sets);
+        }
+    } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.querySelector('.scoreboard-container');
+    CURRENT_MATCH_ID = container ? parseInt(container.getAttribute('data-match-id')) : null;
+
+    document.querySelectorAll('.btn-update-set').forEach(button => {
+        button.addEventListener('click', function() {
+            updateSet(parseInt(this.dataset.matchId), parseInt(this.dataset.setNumber));
+        });
+    });
+
+    const addSetBtn = document.getElementById('addSetBtn');
+    if (addSetBtn) {
+        addSetBtn.addEventListener('click', function() {
+            addSet(parseInt(this.dataset.matchId));
+        });
+    }
+
+    const completeMatchBtn = document.getElementById('completeMatchBtn');
+    if (completeMatchBtn) {
+        completeMatchBtn.addEventListener('click', function() {
+            completeMatch(parseInt(this.dataset.matchId));
+        });
+    }
+
+    updateMatchStatus();
+    setInterval(updateMatchStatus, 3000);
+});
+</script>
+{% endblock %}
