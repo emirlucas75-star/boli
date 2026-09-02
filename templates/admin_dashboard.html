@@ -155,6 +155,59 @@
         </form>
     </div>
 
+    <!-- ===== GESTIÓN DE EQUIPOS ===== -->
+    <div class="admin-section" style="grid-column: 1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+            <h2 style="margin:0;">Equipos Registrados</h2>
+            <button type="button" class="btn-danger" onclick="resetTournament()">Borrar todo el torneo</button>
+        </div>
+
+        {% if teams %}
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Equipo</th>
+                        <th>Entrenador</th>
+                        <th>Categoría</th>
+                        <th>Grupo</th>
+                        <th>Jugadores</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="teamsTableBody">
+                    {% for team in teams %}
+                    <tr id="teamRow-{{ team.id }}">
+                        <td style="color:var(--gray-400);">#{{ team.id }}</td>
+                        <td><strong>{{ team.name }}</strong></td>
+                        <td>{{ team.coach or '—' }}</td>
+                        <td>{{ team.category or '—' }}</td>
+                        <td>{{ team.group or '—' }}</td>
+                        <td>{{ team.players|length }}</td>
+                        <td>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <button type="button" class="btn-success"
+                                    onclick='openEditTeamModal({{ team.id }}, {{ team.name|tojson }}, {{ (team.coach or "")|tojson }}, {{ (team.category or "")|tojson }}, {{ (team.group or "")|tojson }})'>
+                                    Editar
+                                </button>
+                                <button type="button" class="btn-danger" onclick="deleteTeam({{ team.id }}, {{ team.name|tojson }})">
+                                    Eliminar
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:32px; color:var(--gray-400); background:var(--gray-50); border-radius:var(--radius-lg);">
+            <p>No hay equipos registrados aún</p>
+        </div>
+        {% endif %}
+    </div>
+
     <!-- ===== AGREGAR JUGADOR ===== -->
     <div class="admin-section">
         <h2>Agregar Jugador</h2>
@@ -223,6 +276,10 @@
                 <input type="text" name="location" placeholder="Ej: Foro Boca 1">
             </div>
             <div class="form-group">
+                <label>Cancha</label>
+                <input type="text" name="cancha" placeholder="Ej: Cancha 1, Cancha A">
+            </div>
+            <div class="form-group">
                 <label>Árbitro</label>
                 <select name="referee_id" required>
                     <option value="">Seleccionar árbitro...</option>
@@ -248,6 +305,7 @@
                         <th>Local</th>
                         <th>Visitante</th>
                         <th>Lugar</th>
+                        <th>Cancha</th>
                         <th>Categoría / Grupo</th>
                         <th>Árbitro</th>
                         <th>Estado</th>
@@ -260,7 +318,8 @@
                         <td>{{ match.date.strftime('%d/%m/%Y %H:%M') }}</td>
                         <td><strong>{{ match.home_team.name }}</strong></td>
                         <td><strong>{{ match.away_team.name }}</strong></td>
-                        <td style="color:var(--gray-500);">{{ match.location }}</td>
+                        <td style="color:var(--gray-500);">{{ match.location or '—' }}</td>
+                        <td style="color:var(--gray-500);">{{ match.cancha or '—' }}</td>
                         <td>
                             {% if match.category or match.group %}
                                 {{ match.category or '—' }} / {{ match.group or '—' }}
@@ -284,6 +343,43 @@
         {% endif %}
     </div>
 
+</div>
+
+<!-- Modal editar equipo -->
+<div id="editTeamModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:10000; align-items:center; justify-content:center; padding:16px;">
+    <div style="background:white; border-radius:16px; width:100%; max-width:480px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+        <h3 style="margin:0 0 16px; font-family:'Outfit',sans-serif;">Editar equipo</h3>
+        <form id="editTeamForm" class="admin-form">
+            <input type="hidden" name="team_id" id="editTeamId">
+            <div class="form-group">
+                <label>Nombre del equipo</label>
+                <input type="text" name="name" id="editTeamName" required>
+            </div>
+            <div class="form-group">
+                <label>Entrenador</label>
+                <input type="text" name="coach" id="editTeamCoach">
+            </div>
+            <div class="form-group">
+                <label>Categoría</label>
+                <select name="category" id="editTeamCategory" onchange="toggleEditCustomCategory(this)">
+                    <option value="Femenil">Femenil</option>
+                    <option value="Varonil">Varonil</option>
+                    <option value="Mixto">Mixto</option>
+                    <option value="Libre">Libre</option>
+                    <option value="Otro">Otro...</option>
+                </select>
+                <input type="text" name="custom_category" id="editCustomCategory" placeholder="Escribe la categoría..." style="display:none; margin-top:8px;">
+            </div>
+            <div class="form-group">
+                <label>Grupo</label>
+                <input type="text" name="group" id="editTeamGroup" placeholder="Ej: Grupo A">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="submit" class="btn-primary">Guardar cambios</button>
+                <button type="button" class="btn-secondary" onclick="closeEditTeamModal()">Cancelar</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -381,6 +477,100 @@ function autoFillMatchDetails() {
         document.getElementById('matchGroup').value = grp;
     }
 }
+
+function toggleEditCustomCategory(select) {
+    const customInput = document.getElementById('editCustomCategory');
+    if (select.value === 'Otro') {
+        customInput.style.display = 'block';
+        customInput.required = true;
+    } else {
+        customInput.style.display = 'none';
+        customInput.required = false;
+    }
+}
+
+function openEditTeamModal(id, name, coach, category, group) {
+    document.getElementById('editTeamId').value = id;
+    document.getElementById('editTeamName').value = name;
+    document.getElementById('editTeamCoach').value = coach;
+    document.getElementById('editTeamGroup').value = group;
+
+    const categorySelect = document.getElementById('editTeamCategory');
+    const customInput = document.getElementById('editCustomCategory');
+    const preset = ['Femenil', 'Varonil', 'Mixto', 'Libre'];
+    if (preset.includes(category)) {
+        categorySelect.value = category;
+        customInput.style.display = 'none';
+        customInput.value = '';
+    } else if (category) {
+        categorySelect.value = 'Otro';
+        customInput.style.display = 'block';
+        customInput.value = category;
+    } else {
+        categorySelect.value = 'Femenil';
+        customInput.style.display = 'none';
+        customInput.value = '';
+    }
+
+    const modal = document.getElementById('editTeamModal');
+    modal.style.display = 'flex';
+}
+
+function closeEditTeamModal() {
+    document.getElementById('editTeamModal').style.display = 'none';
+}
+
+document.getElementById('editTeamForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const teamId = document.getElementById('editTeamId').value;
+    const formData = new FormData(this);
+    const response = await fetch(`/admin/edit_team/${teamId}`, { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast('✅ Equipo actualizado');
+        closeEditTeamModal();
+        setTimeout(() => location.reload(), 800);
+    } else {
+        showToast('❌ Error: ' + result.error, true);
+    }
+});
+
+async function deleteTeam(id, name) {
+    if (!confirm(`¿Eliminar el equipo "${name}"?\n\nTambién se borrarán sus jugadores y partidos relacionados.`)) return;
+    const response = await fetch(`/admin/delete_team/${id}`, { method: 'POST' });
+    const result = await response.json();
+    if (result.success) {
+        showToast('✅ Equipo eliminado');
+        const row = document.getElementById(`teamRow-${id}`);
+        if (row) row.remove();
+        setTimeout(() => location.reload(), 800);
+    } else {
+        showToast('❌ Error: ' + (result.error || 'No se pudo eliminar'), true);
+    }
+}
+
+async function resetTournament() {
+    const confirmText = 'BORRAR TODO';
+    const input = prompt(
+        'Esto eliminará TODOS los equipos, jugadores y partidos.\n' +
+        'Los usuarios admin y árbitros se conservan.\n\n' +
+        `Escribe ${confirmText} para confirmar:`
+    );
+    if (input !== confirmText) return;
+
+    const response = await fetch('/admin/reset_tournament', { method: 'POST' });
+    const result = await response.json();
+    if (result.success) {
+        showToast('✅ Torneo reiniciado');
+        setTimeout(() => location.reload(), 1000);
+    } else {
+        showToast('❌ Error: ' + (result.error || 'No se pudo reiniciar'), true);
+    }
+}
+
+document.getElementById('editTeamModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditTeamModal();
+});
 
 // ==== FORM SUBMISSIONS ====
 document.getElementById('createUserForm').addEventListener('submit', async function(e) {

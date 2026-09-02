@@ -34,7 +34,7 @@
         <p style="font-size: 0.75rem; color: var(--gray-400); text-align:center;">Sets ganados</p>
 
         <div class="details">
-            <p>Ubicación: {{ match.location }}</p>
+            <p>Ubicación: {{ match.location }}{% if match.cancha %} · Cancha {{ match.cancha }}{% endif %}</p>
             <p>Fecha: {{ match.date.strftime('%d/%m/%Y %H:%M') }}</p>
             <p>Árbitro: {{ match.referee.username }}</p>
         </div>

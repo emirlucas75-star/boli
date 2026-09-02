@@ -16,7 +16,7 @@
                     {% elif match.status == 'active' %}EN VIVO
                     {% else %}Finalizado{% endif %}
                 </span>
-                <span class="venue-label">{{ match.location }}</span>
+                <span class="venue-label">{{ match.location }}{% if match.cancha %} · Cancha {{ match.cancha }}{% endif %}</span>
             </div>
             <div class="match-card-body">
                 <div class="match-team team-home">{{ match.home_team.name }}</div>

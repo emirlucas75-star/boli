@@ -54,6 +54,7 @@ class Match(db.Model):
     team2_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
     date = db.Column(db.DateTime, nullable=False)
     location = db.Column(db.String(200))
+    cancha = db.Column(db.String(50), nullable=True)
     referee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     status = db.Column(db.String(20), default='pending')  # pending, active, completed
     winner_id = db.Column(db.Integer, db.ForeignKey('teams.id'))

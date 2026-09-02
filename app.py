@@ -203,7 +203,8 @@ def create_match():
     team1_id = request.form['team1_id']
     team2_id = request.form['team2_id']
     date_str = request.form['date']
-    location = request.form['location']
+    location = request.form.get('location', '')
+    cancha = request.form.get('cancha', '')
     referee_id = request.form['referee_id']
     category = request.form.get('category', '')
     group = request.form.get('group', '')
@@ -224,6 +225,7 @@ def create_match():
         team2_id=team2_id,
         date=date,
         location=location,
+        cancha=cancha,
         referee_id=referee_id,
         category=category,
         group=group
@@ -232,6 +234,81 @@ def create_match():
     db.session.commit()
     
     return jsonify({'success': True, 'match': {'id': match.id}})
+
+@app.route('/admin/edit_team/<int:team_id>', methods=['POST'])
+@login_required
+def edit_team(team_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+
+    team = Team.query.get_or_404(team_id)
+    name = request.form.get('name', '').strip()
+    coach = request.form.get('coach', '').strip()
+    category = request.form.get('category', '')
+    if category == 'Otro':
+        category = request.form.get('custom_category', '').strip()
+    group = request.form.get('group', '').strip()
+
+    if not name:
+        return jsonify({'error': 'El nombre del equipo es obligatorio'}), 400
+
+    existing = Team.query.filter(Team.name == name, Team.id != team.id).first()
+    if existing:
+        return jsonify({'error': 'Ya existe otro equipo con ese nombre'}), 400
+
+    team.name = name
+    team.coach = coach
+    team.category = category
+    team.group = group
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'team': {
+            'id': team.id,
+            'name': team.name,
+            'coach': team.coach,
+            'category': team.category,
+            'group': team.group
+        }
+    })
+
+@app.route('/admin/delete_team/<int:team_id>', methods=['POST'])
+@login_required
+def delete_team(team_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+
+    team = Team.query.get_or_404(team_id)
+
+    Player.query.filter_by(team_id=team.id).delete()
+    User.query.filter_by(team_id=team.id).update({'team_id': None})
+
+    matches = Match.query.filter(
+        (Match.team1_id == team.id) | (Match.team2_id == team.id)
+    ).all()
+    for match in matches:
+        db.session.delete(match)
+
+    db.session.delete(team)
+    db.session.commit()
+
+    return jsonify({'success': True})
+
+@app.route('/admin/reset_tournament', methods=['POST'])
+@login_required
+def reset_tournament():
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+
+    Set.query.delete()
+    Match.query.delete()
+    Player.query.delete()
+    Team.query.delete()
+    User.query.filter(User.role == 'team').update({'team_id': None})
+    db.session.commit()
+
+    return jsonify({'success': True})
 
 # Rutas para Equipos
 @app.route('/team/dashboard')
@@ -621,7 +698,10 @@ def init_db():
         db.create_all()
         
         # Migración automática para agregar columnas si no existen
-        for table, col in [("teams", "category"), ("teams", '"group"'), ("matches", "category"), ("matches", '"group"')]:
+        for table, col in [
+            ("teams", "category"), ("teams", '"group"'),
+            ("matches", "category"), ("matches", '"group"'), ("matches", "cancha")
+        ]:
             try:
                 db.session.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {col} VARCHAR(50)"))
                 db.session.commit()

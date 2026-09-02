@@ -58,7 +58,7 @@
                     <td>{{ match.date.strftime('%d/%m/%Y %H:%M') }}</td>
                     <td>{{ match.home_team.name }}</td>
                     <td>{{ match.away_team.name }}</td>
-                    <td>{{ match.location }}</td>
+                    <td>{{ match.location }}{% if match.cancha %} · Cancha {{ match.cancha }}{% endif %}</td>
                     <td>{{ match.referee.username if match.referee else 'No asignado' }}</td>
                     <td>{{ match.status }}</td>
                 </tr>

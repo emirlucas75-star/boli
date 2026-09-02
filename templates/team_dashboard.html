@@ -91,7 +91,7 @@
                                 vs {{ match.home_team.name }}
                             {% endif %}
                         </td>
-                        <td style="color:var(--gray-500); font-size:0.82rem;">{{ match.location }}</td>
+                        <td style="color:var(--gray-500); font-size:0.82rem;">{{ match.location }}{% if match.cancha %} · Cancha {{ match.cancha }}{% endif %}</td>
                         <td>
                             <span class="status-badge status-{{ match.status }}" data-status="{{ match.status }}">{{ match.status }}</span>
                         </td>
