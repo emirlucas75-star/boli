@@ -131,19 +131,38 @@ def create_user():
     if current_user.role != 'admin':
         return jsonify({'error': 'No autorizado'}), 403
     
-    username = request.form['username']
-    password = request.form['password']
-    role = request.form['role']
-    team_id = request.form.get('team_id')
-    
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    role = request.form.get('role', '').strip()
+    team_id = request.form.get('team_id') or None
+
+    if not username or not password:
+        return jsonify({'error': 'Usuario y contraseña son obligatorios'}), 400
+
+    if role not in ('admin', 'team', 'referee'):
+        return jsonify({'error': 'Rol inválido'}), 400
+
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'Usuario ya existe'}), 400
-    
+
+    # Solo los usuarios de equipo llevan team_id; árbitros y admin quedan sin equipo.
+    if role == 'team':
+        if not team_id:
+            return jsonify({'error': 'Debes seleccionar un equipo'}), 400
+        try:
+            team_id = int(team_id)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Equipo inválido'}), 400
+        if not Team.query.get(team_id):
+            return jsonify({'error': 'Equipo no encontrado'}), 400
+    else:
+        team_id = None
+
     user = User(username=username, role=role, team_id=team_id)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
-    
+
     return jsonify({'success': True, 'user': {'id': user.id, 'username': user.username, 'role': user.role}})
 
 @app.route('/admin/create_team', methods=['POST'])

@@ -113,7 +113,7 @@
             </div>
             <div class="form-group" id="teamSelectGroup">
                 <label>Equipo</label>
-                <select name="team_id">
+                <select name="team_id" id="userTeamSelect">
                     <option value="">Seleccionar equipo...</option>
                     {% for team in teams %}
                         <option value="{{ team.id }}">{{ team.name }}</option>
@@ -449,12 +449,17 @@ async function toggleBanner(id) {
 }
 
 // ==== USER ROLE - SHOW/HIDE TEAM ====
-document.getElementById('userRole').addEventListener('change', function() {
-    const teamSelect = document.getElementById('teamSelectGroup');
-    teamSelect.style.display = this.value === 'team' ? 'block' : 'none';
-});
-// Initial state
-document.getElementById('teamSelectGroup').style.display = 'block';
+function updateTeamSelectForRole() {
+    const role = document.getElementById('userRole').value;
+    const teamGroup = document.getElementById('teamSelectGroup');
+    const teamSelect = document.getElementById('userTeamSelect');
+    const isTeam = role === 'team';
+    teamGroup.style.display = isTeam ? 'block' : 'none';
+    teamSelect.disabled = !isTeam;
+    teamSelect.required = isTeam;
+}
+document.getElementById('userRole').addEventListener('change', updateTeamSelectForRole);
+updateTeamSelectForRole();
 
 function toggleCustomCategory(select) {
     const customInput = document.getElementById('customCategory');
@@ -581,8 +586,10 @@ document.getElementById('createUserForm').addEventListener('submit', async funct
     if (result.success) {
         showToast('✅ Usuario creado exitosamente');
         this.reset();
+        updateTeamSelectForRole();
+        setTimeout(() => location.reload(), 800);
     } else {
-        showToast('❌ Error: ' + result.error, true);
+        showToast('❌ Error: ' + (result.error || 'No se pudo crear el usuario'), true);
     }
 });
 
