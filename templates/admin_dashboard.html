@@ -543,6 +543,7 @@
     <div class="admin-modal-card">
         <h3>Editar equipo</h3>
         <form id="editTeamForm" class="admin-form">
+            <div class="admin-modal-body">
             <input type="hidden" name="team_id" id="editTeamId">
             <div class="form-group">
                 <label>Nombre del equipo</label>
@@ -567,6 +568,11 @@
                 <label>Grupo</label>
                 <input type="text" name="group" id="editTeamGroup" placeholder="Ej: Grupo A">
             </div>
+            </div>
+            <div class="admin-modal-actions">
+                <button type="button" class="btn-secondary" id="btnCancelEditTeam">Cancelar</button>
+                <button type="submit" class="btn-primary" id="btnSaveEditTeam">Guardar cambios</button>
+            </div>
         </form>
     </div>
 </div>
@@ -575,6 +581,7 @@
     <div class="admin-modal-card">
         <h3>Editar partido / horario</h3>
         <form id="editMatchForm" class="admin-form">
+            <div class="admin-modal-body">
             <input type="hidden" id="editMatchId">
             <div class="form-group">
                 <label>Equipo local</label>
@@ -622,9 +629,10 @@
                 </select>
             </div>
             <p class="admin-help" id="editMatchTeamsHint" hidden>Los equipos no se pueden cambiar si el partido ya empezó.</p>
-            <div class="admin-row-actions">
-                <button type="submit" class="btn-primary">Guardar horario</button>
+            </div>
+            <div class="admin-modal-actions">
                 <button type="button" class="btn-secondary" onclick="closeEditMatchModal()">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar horario</button>
             </div>
         </form>
     </div>
@@ -786,19 +794,35 @@ function closeEditTeamModal() {
     document.getElementById('editTeamModal').classList.remove('is-open');
 }
 
-document.getElementById('editTeamForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
+document.getElementById('btnCancelEditTeam').addEventListener('click', closeEditTeamModal);
+
+async function saveEditTeam(e) {
+    if (e) e.preventDefault();
     const teamId = document.getElementById('editTeamId').value;
-    const formData = new FormData(this);
-    const response = await fetch(`/admin/edit_team/${teamId}`, { method: 'POST', body: formData });
-    const result = await response.json();
-    if (result.success) {
-        showToast('Equipo actualizado');
-        closeEditTeamModal();
-        setTimeout(() => location.reload(), 800);
-    } else {
-        showToast('Error: ' + result.error, true);
+    const form = document.getElementById('editTeamForm');
+    const formData = new FormData(form);
+    const btn = document.getElementById('btnSaveEditTeam');
+    btn.disabled = true;
+    try {
+        const response = await fetch(`/admin/edit_team/${teamId}`, { method: 'POST', body: formData });
+        const result = await response.json();
+        if (result.success) {
+            showToast('Equipo actualizado');
+            closeEditTeamModal();
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showToast('Error: ' + (result.error || 'No se pudo guardar'), true);
+        }
+    } catch (err) {
+        showToast('Error al guardar el equipo', true);
     }
+    btn.disabled = false;
+}
+
+document.getElementById('editTeamForm').addEventListener('submit', saveEditTeam);
+document.getElementById('btnSaveEditTeam').addEventListener('click', function(e) {
+    e.preventDefault();
+    saveEditTeam(e);
 });
 
 async function deleteTeam(id, name) {

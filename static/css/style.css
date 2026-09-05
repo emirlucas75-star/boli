@@ -453,12 +453,13 @@ main {
 
 /* ===== SEARCH BAR ===== */
 .search-section {
-    padding: 12px 16px;
+    padding: 12px 16px 8px;
     display: flex;
     justify-content: flex-end;
     align-items: center;
     gap: 10px;
     background: var(--white);
+    flex-wrap: wrap;
 }
 
 .team-filter-input {
@@ -498,6 +499,64 @@ main {
 .btn-search:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
+}
+
+.cancha-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px 12px;
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.cancha-filter-label {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--gray-500);
+}
+
+.cancha-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 0;
+    scrollbar-width: none;
+}
+
+.cancha-chips::-webkit-scrollbar {
+    display: none;
+}
+
+.cancha-chip {
+    flex: 0 0 auto;
+    border: 2px solid var(--gray-200);
+    background: var(--white);
+    color: var(--dark);
+    border-radius: 999px;
+    padding: 8px 14px;
+    min-height: 40px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.cancha-chip.is-on {
+    background: var(--primary);
+    color: var(--white);
+    border-color: var(--primary);
+}
+
+.cancha-empty-hint {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--gray-500);
 }
 
 /* ===== DATE HEADER ===== */
@@ -1549,15 +1608,50 @@ tbody tr:last-child td {
     border-radius: 16px;
     width: 100%;
     max-width: 480px;
-    padding: 24px;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
-    max-height: 90vh;
-    overflow-y: auto;
+    max-height: min(92vh, 720px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .admin-modal-card h3 {
-    margin: 0 0 16px;
+    margin: 0 0 12px;
     font-family: 'Outfit', sans-serif;
+    flex-shrink: 0;
+}
+
+.admin-modal-card .admin-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.admin-modal-body {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding-right: 2px;
+}
+
+.admin-modal-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gray-200);
+    background: white;
+}
+
+.admin-modal-actions .btn-primary,
+.admin-modal-actions .btn-secondary {
+    flex: 1;
+    width: auto !important;
+    min-height: 52px;
+    font-size: 1rem;
 }
 
 .admin-flash {
@@ -2448,10 +2542,64 @@ body.ref-mode main {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
+    color: inherit;
 }
 
 .ref-name.mag { border-color: #C01B5E; color: #ff7ab8; }
 .ref-name.wht { border-color: #eee; color: #fff; }
+
+.ref-serve-box {
+    background: #111;
+    border: 1px solid #FFC107;
+    border-radius: 14px;
+    padding: 10px;
+    margin: 10px 0 8px;
+    text-align: center;
+}
+
+.ref-serve-box p {
+    color: #FFC107;
+    font-weight: 800;
+    font-size: 0.82rem;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.ref-serve-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.ref-serve-btn {
+    min-height: 48px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    font-weight: 800;
+    font-family: inherit;
+    font-size: 0.78rem;
+    padding: 8px;
+    cursor: pointer;
+}
+
+.ref-serve-btn.mag { background: #3a1022; color: #ff7ab8; border-color: #C01B5E; }
+.ref-serve-btn.wht { background: #222; color: #fff; border-color: #888; }
+.ref-serve-btn.is-on {
+    background: #FFC107;
+    color: #111;
+    border-color: #FFC107;
+}
+
+.ref-serve-box small {
+    display: block;
+    margin-top: 8px;
+    color: #ccc;
+    font-size: 0.75rem;
+}
 
 .ref-swap {
     width: 40px;

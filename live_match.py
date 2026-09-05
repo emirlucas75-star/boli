@@ -82,6 +82,19 @@ def ensure_started(match):
     return True, None
 
 
+def apply_serve(match, team):
+    if match.status == 'completed':
+        return False, 'El partido ya terminó'
+    if team not in (1, 2):
+        return False, 'Equipo inválido'
+    match.serve_team = team
+    if match.left_is_team1 is None:
+        match.left_is_team1 = True
+    current = next((s for s in match.sets if not s.completed), None)
+    log_event(match, current, 'serve', team=team, note='Saque asignado por el árbitro')
+    return True, None
+
+
 def ensure_current_set(match):
     wins1, wins2 = set_wins(match)
     if wins1 >= SETS_TO_WIN or wins2 >= SETS_TO_WIN:

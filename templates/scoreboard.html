@@ -14,9 +14,18 @@
     </header>
 
     <div class="ref-names">
-        <div class="ref-name mag" id="leftName">{{ match.home_team.name }}</div>
+        <button type="button" class="ref-name mag" id="leftName">{{ match.home_team.name }}</button>
         <button type="button" class="ref-swap" id="btnSwap" title="Cambiar de campo">⇄</button>
-        <div class="ref-name wht" id="rightName">{{ match.away_team.name }}</div>
+        <button type="button" class="ref-name wht" id="rightName">{{ match.away_team.name }}</button>
+    </div>
+
+    <div class="ref-serve-box" id="serveBox">
+        <p>¿Quién saca?</p>
+        <div class="ref-serve-row">
+            <button type="button" class="ref-serve-btn mag" id="btnServeLeft">Saca local</button>
+            <button type="button" class="ref-serve-btn wht" id="btnServeRight">Saca visitante</button>
+        </div>
+        <small id="serveLabel">Toca un equipo para darle el servicio</small>
     </div>
 
     <div class="ref-scores">
@@ -128,6 +137,7 @@ const LABELS = {
     switch: 'Switch',
     court_change: 'Cambio de cancha',
     court_change_due: 'Cambio a los 7',
+    serve: 'Saque',
     set_won: 'Set ganado',
     swap_sides: 'Cambio de campo',
     match_complete: 'Partido finalizado',
@@ -162,6 +172,16 @@ function render(s) {
     const L = s.left, R = s.right;
     document.getElementById('leftName').textContent = L.name;
     document.getElementById('rightName').textContent = R.name;
+    const btnServeLeft = document.getElementById('btnServeLeft');
+    const btnServeRight = document.getElementById('btnServeRight');
+    btnServeLeft.textContent = 'Saca ' + L.name;
+    btnServeRight.textContent = 'Saca ' + R.name;
+    btnServeLeft.classList.toggle('is-on', L.has_ball);
+    btnServeRight.classList.toggle('is-on', R.has_ball);
+    document.getElementById('serveLabel').textContent = L.has_ball
+        ? ('Servicio: ' + L.name)
+        : ('Servicio: ' + R.name);
+    document.getElementById('serveBox').hidden = s.completed;
     document.getElementById('leftPoints').textContent = L.points;
     document.getElementById('rightPoints').textContent = R.points;
     document.getElementById('leftSets').textContent = L.sets;
@@ -239,6 +259,10 @@ document.getElementById('btnUndo').onclick = () => postLive('/referee/live/undo'
 document.getElementById('btnLeftTimeout').onclick = () => STATE && postLive('/referee/live/timeout', { team: STATE.left.team });
 document.getElementById('btnRightTimeout').onclick = () => STATE && postLive('/referee/live/timeout', { team: STATE.right.team });
 document.getElementById('btnSwap').onclick = () => postLive('/referee/live/swap_sides');
+document.getElementById('btnServeLeft').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team });
+document.getElementById('btnServeRight').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team });
+document.getElementById('leftName').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team });
+document.getElementById('rightName').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team });
 document.getElementById('btnCourtChange').onclick = () => postLive('/referee/live/court_change');
 document.getElementById('btnCloseSet').onclick = async () => {
     if (!confirm('¿Cerrar el set actual con el marcador de ahora?')) return;

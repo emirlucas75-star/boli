@@ -16,7 +16,9 @@ document.addEventListener('DOMContentLoaded', function() {
             let isValid = true;
             
             requiredFields.forEach(field => {
-                if (!field.value.trim()) {
+                if (field.disabled) return;
+                const value = field.value == null ? '' : String(field.value);
+                if (!value.trim()) {
                     field.style.borderColor = '#e74c3c';
                     isValid = false;
                 } else {
@@ -133,9 +135,72 @@ function startAutoplay() {
     }
 }
 
+window.selectedCancha = 'all';
+
+function listCanchasFromPage() {
+    const names = new Set();
+    document.querySelectorAll('.match-card').forEach(card => {
+        const value = (card.dataset.cancha || '').trim();
+        if (value) names.add(value);
+    });
+    document.querySelectorAll('#canchaFilter option').forEach(opt => {
+        const value = (opt.value || '').trim();
+        if (value && value !== 'all') names.add(value);
+    });
+    return [...names].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+}
+
+function renderCanchaChips() {
+    const bar = document.getElementById('canchaChips');
+    if (!bar) return;
+    const canchas = listCanchasFromPage();
+    const current = window.selectedCancha || 'all';
+    bar.innerHTML = '';
+
+    const makeChip = (value, label) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cancha-chip' + (current === value ? ' is-on' : '');
+        btn.dataset.cancha = value;
+        btn.textContent = label;
+        btn.addEventListener('click', () => selectCancha(value));
+        bar.appendChild(btn);
+    };
+
+    makeChip('all', 'Todas');
+    canchas.forEach(name => makeChip(name, name));
+
+    const hint = document.getElementById('canchaEmptyHint');
+    if (hint) hint.hidden = canchas.length > 0;
+
+    const modal = document.getElementById('canchaFilter');
+    if (modal) {
+        modal.innerHTML = '<option value="all">Todas las canchas</option>' +
+            canchas.map(name => `<option value="${name.replace(/"/g, '&quot;')}">${name}</option>`).join('');
+        modal.value = current;
+    }
+}
+
+function selectCancha(value) {
+    window.selectedCancha = value || 'all';
+    document.querySelectorAll('#canchaChips .cancha-chip').forEach(btn => {
+        btn.classList.toggle('is-on', btn.dataset.cancha === window.selectedCancha);
+    });
+    const modal = document.getElementById('canchaFilter');
+    if (modal) modal.value = window.selectedCancha;
+    if (typeof window.applyCurrentMatchFilters === 'function') {
+        window.applyCurrentMatchFilters();
+    }
+}
+
+function currentCancha() {
+    return window.selectedCancha || 'all';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     updateCarousel();
     startAutoplay();
+    renderCanchaChips();
     
     // Actualizar partidos cada 3 segundos si estamos en una página con partidos
     const matchCards = document.querySelectorAll('.match-card');

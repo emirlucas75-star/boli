@@ -12,6 +12,7 @@ from live_match import (
     apply_court_change,
     apply_delay,
     apply_point,
+    apply_serve,
     apply_switch,
     apply_timeout,
     apply_undo,
@@ -131,6 +132,7 @@ def index():
     categories = sorted(list(set(m.category for m in matches_list if m.category)))
     groups = sorted(list(set(m.group for m in matches_list if m.group)))
     filter_teams = [t.name for t in Team.query.order_by(Team.name).all()]
+    filter_canchas = sorted({(m.cancha or '').strip() for m in matches_list if (m.cancha or '').strip()})
     
     return render_template('index.html', 
                            hero_banners=hero_banners, 
@@ -138,7 +140,8 @@ def index():
                            matches=matches_list,
                            categories=categories,
                            groups=groups,
-                           filter_teams=filter_teams)
+                           filter_teams=filter_teams,
+                           filter_canchas=filter_canchas)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -755,6 +758,14 @@ def live_swap_sides():
         return err
     return _live_response(match, *swap_sides(match))
 
+@app.route('/referee/live/serve', methods=['POST'])
+@login_required
+def live_serve():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_serve(match, int(request.json.get('team') or 0)))
+
 @app.route('/referee/live/complete_set', methods=['POST'])
 @login_required
 def live_complete_set():
@@ -1007,13 +1018,15 @@ def matches():
     categories = sorted(list(set(m.category for m in matches_list if m.category)))
     groups = sorted(list(set(m.group for m in matches_list if m.group)))
     filter_teams = [t.name for t in Team.query.order_by(Team.name).all()]
+    filter_canchas = sorted({(m.cancha or '').strip() for m in matches_list if (m.cancha or '').strip()})
     
     return render_template('matches.html', 
                            matches=matches_list, 
                            sponsor_banners=sponsor_banners,
                            categories=categories,
                            groups=groups,
-                           filter_teams=filter_teams)
+                           filter_teams=filter_teams,
+                           filter_canchas=filter_canchas)
 
 @app.route('/teams')
 def teams():

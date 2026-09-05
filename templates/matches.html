@@ -29,6 +29,11 @@
     <input type="search" class="team-filter-input" id="teamSearchInput" placeholder="Buscar equipo..." autocomplete="off">
     <button class="btn-search" onclick="toggleFilter()">FILTRAR</button>
 </div>
+<div class="cancha-filter-bar">
+    <span class="cancha-filter-label">Cancha</span>
+    <div class="cancha-chips" id="canchaChips"></div>
+    <p class="cancha-empty-hint" id="canchaEmptyHint" hidden>No hay canchas asignadas aún</p>
+</div>
 
 <!-- Filter Modal -->
 <div class="filter-modal-overlay" id="filterModal">
@@ -66,10 +71,18 @@
         </select>
 
         <div style="margin-bottom: 12px; font-weight: 700; font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase;">Equipo</div>
-        <select id="teamFilter" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
+        <select id="teamFilter" style="width: 100%; padding: 10px; margin-bottom: 16px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
             <option value="all">Todos los equipos</option>
             {% for team_name in filter_teams %}
             <option value="{{ team_name }}">{{ team_name }}</option>
+            {% endfor %}
+        </select>
+
+        <div style="margin-bottom: 12px; font-weight: 700; font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase;">Cancha</div>
+        <select id="canchaFilter" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
+            <option value="all">Todas las canchas</option>
+            {% for cancha in filter_canchas %}
+            <option value="{{ cancha }}">{{ cancha }}</option>
             {% endfor %}
         </select>
 
@@ -108,7 +121,8 @@
 
             <div class="match-card" data-match-id="{{ match.id }}" data-status="{{ match.status }}" data-date="{{ match_date }}"
                  data-category="{{ match.category or '' }}" data-group="{{ match.group or '' }}"
-                 data-team1="{{ match.home_team.name }}" data-team2="{{ match.away_team.name }}">
+                 data-team1="{{ match.home_team.name }}" data-team2="{{ match.away_team.name }}"
+                 data-cancha="{{ match.cancha or '' }}">
                 <div class="match-card-header">
                     <span class="category-badge cat-{{ match.status }} js-badge">
                         {% if match.status == 'pending' %}Pendiente
@@ -155,16 +169,12 @@ function toggleFilter() {
 }
 
 function applyFilters() {
-    const status = document.getElementById('statusFilter').value;
-    const category = document.getElementById('categoryFilter').value;
-    const group = document.getElementById('groupFilter').value;
-    const team = (document.getElementById('teamFilter') || {}).value || 'all';
-    const search = (document.getElementById('teamSearchInput') || {}).value || '';
-    filterMatchCards(status, category, group, team, search);
+    const modalCancha = (document.getElementById('canchaFilter') || {}).value || 'all';
+    selectCancha(modalCancha);
     toggleFilter();
 }
 
-function filterMatchCards(status, category, group, team, search) {
+function filterMatchCards(status, category, group, team, search, cancha) {
     const q = (search || '').trim().toLowerCase();
     document.querySelectorAll('.match-card').forEach(card => {
         const matchesStatus = status === 'all' || card.dataset.status === status;
@@ -174,7 +184,8 @@ function filterMatchCards(status, category, group, team, search) {
         const t2 = (card.dataset.team2 || '').toLowerCase();
         const matchesTeam = team === 'all' || card.dataset.team1 === team || card.dataset.team2 === team;
         const matchesSearch = !q || t1.includes(q) || t2.includes(q);
-        card.style.display = (matchesStatus && matchesCategory && matchesGroup && matchesTeam && matchesSearch) ? '' : 'none';
+        const matchesCancha = !cancha || cancha === 'all' || (card.dataset.cancha || '').trim() === cancha;
+        card.style.display = (matchesStatus && matchesCategory && matchesGroup && matchesTeam && matchesSearch && matchesCancha) ? '' : 'none';
     });
 
     // Determine which dates have visible cards
@@ -242,15 +253,16 @@ function buildDayTabs() {
 document.addEventListener('DOMContentLoaded', () => {
     buildDayTabs();
     const teamSearch = document.getElementById('teamSearchInput');
-    if (teamSearch) {
-        teamSearch.addEventListener('input', () => {
-            const status = document.getElementById('statusFilter').value;
-            const category = document.getElementById('categoryFilter').value;
-            const group = document.getElementById('groupFilter').value;
-            const team = (document.getElementById('teamFilter') || {}).value || 'all';
-            filterMatchCards(status, category, group, team, teamSearch.value);
-        });
-    }
+    const rerun = () => {
+        const status = document.getElementById('statusFilter').value;
+        const category = document.getElementById('categoryFilter').value;
+        const group = document.getElementById('groupFilter').value;
+        const team = (document.getElementById('teamFilter') || {}).value || 'all';
+        filterMatchCards(status, category, group, team, (teamSearch && teamSearch.value) || '', currentCancha());
+    };
+    if (teamSearch) teamSearch.addEventListener('input', rerun);
+    window.applyCurrentMatchFilters = rerun;
+    renderCanchaChips();
 });
 document.getElementById('filterModal').addEventListener('click', e => {
     if (e.target === document.getElementById('filterModal')) toggleFilter();
