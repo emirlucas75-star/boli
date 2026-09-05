@@ -60,8 +60,17 @@ class Match(db.Model):
     winner_id = db.Column(db.Integer, db.ForeignKey('teams.id'))
     category = db.Column(db.String(50), nullable=True)
     group = db.Column(db.String(50), nullable=True)
-    
+    serve_team = db.Column(db.Integer, default=1)  # 1 local, 2 visitante
+    left_is_team1 = db.Column(db.Boolean, default=True)
+    started_at = db.Column(db.DateTime)
+    timeout_t1 = db.Column(db.Boolean, default=False)
+    timeout_t2 = db.Column(db.Boolean, default=False)
+    switch_t1 = db.Column(db.Boolean, default=False)
+    switch_t2 = db.Column(db.Boolean, default=False)
+    observations = db.Column(db.Text)
+
     sets = db.relationship('Set', backref='match', lazy=True, cascade='all, delete-orphan')
+    events = db.relationship('MatchEvent', backref='match', lazy=True, cascade='all, delete-orphan', order_by='MatchEvent.id')
     referee = db.relationship('User', foreign_keys=[referee_id])
     winner = db.relationship('Team', foreign_keys=[winner_id], backref='won_matches')
 
@@ -75,6 +84,24 @@ class Set(db.Model):
     team2_points = db.Column(db.Integer, default=0)
     completed = db.Column(db.Boolean, default=False)
     winner = db.Column(db.Integer, db.ForeignKey('teams.id'))
+    court_change_pending = db.Column(db.Boolean, default=False)
+    court_changed = db.Column(db.Boolean, default=False)
+    sudden_death = db.Column(db.Boolean, default=False)
+
+class MatchEvent(db.Model):
+    __tablename__ = 'match_events'
+
+    id = db.Column(db.Integer, primary_key=True)
+    match_id = db.Column(db.Integer, db.ForeignKey('matches.id'), nullable=False)
+    set_number = db.Column(db.Integer)
+    event_type = db.Column(db.String(30), nullable=False)
+    team = db.Column(db.Integer)  # 1 o 2
+    elapsed_sec = db.Column(db.Integer, default=0)
+    note = db.Column(db.Text)
+    signature = db.Column(db.Text)
+    t1_points = db.Column(db.Integer, default=0)
+    t2_points = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class BannerImage(db.Model):
     __tablename__ = 'banner_images'

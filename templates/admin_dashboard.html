@@ -1,354 +1,547 @@
 {% extends "base.html" %}
 {% block title %}Panel de Administración - VoleyTournament{% endblock %}
+{% block body_class %}admin-mode{% endblock %}
 
 {% block content %}
-<div style="padding: 20px 16px 8px;">
-    <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 900; color: var(--dark);">Panel Admin</h1>
-    <p style="font-size: 0.85rem; color: var(--gray-500); margin-top: 4px;">Bienvenido, <strong>{{ current_user.username }}</strong></p>
-</div>
+{% set status_labels = {'pending': 'Pendiente', 'active': 'En juego', 'completed': 'Finalizado'} %}
 
-<div class="admin-dashboard">
+<div class="admin-page">
+    <div class="admin-sticky">
+        <div class="admin-header">
+            <h1>Panel Admin</h1>
+            <p>Hola, <strong>{{ current_user.username }}</strong></p>
+        </div>
+        <nav class="admin-tabs" id="adminTabs" aria-label="Secciones del panel">
+            <button type="button" class="admin-tab active" data-tab="stats">Resumen</button>
+            <button type="button" class="admin-tab" data-tab="sorteo">Sorteo</button>
+            <button type="button" class="admin-tab" data-tab="equipos">Equipos</button>
+            <button type="button" class="admin-tab" data-tab="partidos">Partidos</button>
+            <button type="button" class="admin-tab" data-tab="usuarios">Usuarios</button>
+            <button type="button" class="admin-tab" data-tab="imagenes">Fotos</button>
+        </nav>
+    </div>
 
-    <!-- ===== GESTIÓN DE IMÁGENES / BANNERS ===== -->
-    <div class="admin-section banner-management">
-        <h2>Gestión de Imágenes</h2>
-        <p style="font-size: 0.85rem; color: var(--gray-500); margin-bottom: 20px;">
-            Sube imágenes para el <strong>banner principal</strong> (hero) y <strong>banners de patrocinadores</strong> que se muestran en la programación pública.
-        </p>
+    <!-- ===== ESTADÍSTICAS ===== -->
+    <section class="admin-tab-panel" id="tab-stats">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-value">{{ stats.teams }}</span>
+                <span class="stat-label">Equipos</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ stats.players }}</span>
+                <span class="stat-label">Jugadores</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ stats.matches }}</span>
+                <span class="stat-label">Partidos</span>
+            </div>
+            <div class="stat-card stat-pending">
+                <span class="stat-value">{{ stats.pending }}</span>
+                <span class="stat-label">Pendientes</span>
+            </div>
+            <div class="stat-card stat-active">
+                <span class="stat-value">{{ stats.active }}</span>
+                <span class="stat-label">En juego</span>
+            </div>
+            <div class="stat-card stat-done">
+                <span class="stat-value">{{ stats.completed }}</span>
+                <span class="stat-label">Finalizados</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ stats.referees }}</span>
+                <span class="stat-label">Árbitros</span>
+            </div>
+        </div>
 
-        <!-- Upload form -->
-        <div style="background: var(--gray-50); border-radius: var(--radius-lg); padding: 20px; border: 2px dashed var(--gray-200); margin-bottom: 20px;" id="uploadZone">
-            <form id="uploadBannerForm" enctype="multipart/form-data">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                    <div class="form-group" style="margin:0;">
-                        <label>Tipo de imagen</label>
-                        <select name="image_type" id="bannerType">
-                            <option value="hero">Banner principal (hero)</option>
-                            <option value="sponsor">Patrocinador / sponsor</option>
+        <div class="admin-section">
+            <h2>Clasificación</h2>
+            {% if grouped_standings %}
+                {% for cat, groups in grouped_standings.items() %}
+                <div class="stats-category">
+                    <h3>{{ cat }}</h3>
+                    {% for grp, group_teams in groups.items() %}
+                    <h4>{{ grp }}</h4>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Equipo</th>
+                                    <th>Pts</th>
+                                    <th>V</th>
+                                    <th>D</th>
+                                    <th>SF</th>
+                                    <th>SC</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for team in group_teams %}
+                                <tr>
+                                    <td data-label="#">{{ loop.index }}</td>
+                                    <td data-label="Equipo"><strong>{{ team.name }}</strong></td>
+                                    <td data-label="Pts"><strong>{{ team.points or 0 }}</strong></td>
+                                    <td data-label="Victorias">{{ team.wins or 0 }}</td>
+                                    <td data-label="Derrotas">{{ team.losses or 0 }}</td>
+                                    <td data-label="Sets a favor">{{ team.sets_won or 0 }}</td>
+                                    <td data-label="Sets en contra">{{ team.sets_lost or 0 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+                <p class="stats-legend">Pts = puntos · V = victorias · D = derrotas · SF = sets a favor · SC = sets en contra</p>
+            {% else %}
+                <div class="admin-empty">Aún no hay equipos para mostrar estadísticas.</div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ===== SORTEO ALEATORIO ===== -->
+    <section class="admin-tab-panel" id="tab-sorteo" hidden>
+        <div class="admin-dashboard">
+            <div class="admin-section">
+                <h2>Sorteo de grupos</h2>
+                <p class="admin-help">Mezcla los equipos al azar y los reparte en grupos A, B, C…</p>
+                <form id="randomGroupsForm" class="admin-form">
+                    <div class="form-group">
+                        <label>Categoría</label>
+                        <select name="category">
+                            <option value="">Todas las categorías</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
                         </select>
                     </div>
-                    <div class="form-group" style="margin:0;">
-                        <label>Título (opcional)</label>
-                        <input type="text" name="title" placeholder="Ej: Selectivo Estatal 2026">
+                    <div class="form-group">
+                        <label>Número de grupos</label>
+                        <select name="num_groups">
+                            <option value="2">2 grupos (A y B)</option>
+                            <option value="3">3 grupos (A, B y C)</option>
+                            <option value="4">4 grupos</option>
+                            <option value="5">5 grupos</option>
+                            <option value="6">6 grupos</option>
+                        </select>
+                    </div>
+                    <label class="admin-check">
+                        <input type="checkbox" name="only_unassigned" value="1" checked>
+                        Solo equipos sin grupo
+                    </label>
+                    <button type="submit" class="btn-primary">Sortear grupos</button>
+                </form>
+            </div>
+
+            <div class="admin-section">
+                <h2>Sorteo de partidos</h2>
+                <p class="admin-help">Crea los cruces al azar (todos contra todos) y los programa en canchas y horarios.</p>
+                <form id="randomMatchesForm" class="admin-form">
+                    <div class="form-group">
+                        <label>Categoría</label>
+                        <select name="category">
+                            <option value="">Todas las categorías</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Grupo (opcional)</label>
+                        <select name="group">
+                            <option value="">Todos los grupos</option>
+                            {% for grp in groups %}
+                            <option value="{{ grp }}">{{ grp }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Inicio</label>
+                        <input type="datetime-local" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Minutos entre partidos</label>
+                        <input type="number" name="interval" value="50" min="10" max="240">
+                    </div>
+                    <div class="form-group">
+                        <label>Lugar / Foro</label>
+                        <input type="text" name="location" placeholder="Ej: Foro Boca 1">
+                    </div>
+                    <div class="form-group">
+                        <label>Canchas</label>
+                        <input type="text" name="canchas" placeholder="Cancha 1, Cancha 2" value="Cancha 1, Cancha 2">
+                    </div>
+                    <label class="admin-check">
+                        <input type="checkbox" name="by_group" value="1" checked>
+                        Generar partidos dentro de cada grupo
+                    </label>
+                    <label class="admin-check">
+                        <input type="checkbox" name="skip_existing" value="1" checked>
+                        No repetir cruces que ya existen
+                    </label>
+                    <button type="submit" class="btn-primary">Generar partidos</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== EQUIPOS ===== -->
+    <section class="admin-tab-panel" id="tab-equipos" hidden>
+        <div class="admin-dashboard">
+            <div class="admin-section">
+                <h2>Crear Equipo</h2>
+                <form id="createTeamForm" class="admin-form">
+                    <div class="form-group">
+                        <label>Nombre del equipo</label>
+                        <input type="text" name="name" placeholder="Ej: Veracruz A" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Entrenador</label>
+                        <input type="text" name="coach" placeholder="Nombre del entrenador" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Categoría</label>
+                        <select name="category" id="teamCategory" onchange="toggleCustomCategory(this)">
+                            <option value="Femenil">Femenil</option>
+                            <option value="Varonil">Varonil</option>
+                            <option value="Mixto">Mixto</option>
+                            <option value="Libre">Libre</option>
+                            <option value="Otro">Otro...</option>
+                        </select>
+                        <input type="text" name="custom_category" id="customCategory" placeholder="Escribe la categoría..." style="display:none; margin-top:8px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Grupo</label>
+                        <input type="text" name="group" placeholder="Ej: Grupo A (o usa el sorteo)">
+                    </div>
+                    <button type="submit" class="btn-primary">Crear Equipo</button>
+                </form>
+            </div>
+
+            <div class="admin-section">
+                <h2>Agregar Jugador</h2>
+                <form id="addPlayerForm" class="admin-form">
+                    <div class="form-group">
+                        <label>Equipo</label>
+                        <select name="team_id" required>
+                            <option value="">Seleccionar equipo...</option>
+                            {% for team in teams %}
+                                <option value="{{ team.id }}">{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Nombre</label>
+                        <input type="text" name="name" placeholder="Nombre del jugador" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Número</label>
+                        <input type="number" name="number" placeholder="# de camiseta" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Posición</label>
+                        <input type="text" name="position" placeholder="Ej: Libero, Central...">
+                    </div>
+                    <button type="submit" class="btn-primary">Agregar Jugador</button>
+                </form>
+            </div>
+
+            <div class="admin-section admin-section-wide">
+                <div class="admin-section-head">
+                    <h2>Equipos registrados</h2>
+                    <button type="button" class="btn-danger" onclick="resetTournament()">Borrar torneo</button>
+                </div>
+
+                {% if teams %}
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Equipo</th>
+                                <th>Entrenador</th>
+                                <th>Categoría</th>
+                                <th>Grupo</th>
+                                <th>Jugadores</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teamsTableBody">
+                            {% for team in teams %}
+                            <tr id="teamRow-{{ team.id }}">
+                                <td data-label="Equipo"><strong>{{ team.name }}</strong></td>
+                                <td data-label="Entrenador">{{ team.coach or '—' }}</td>
+                                <td data-label="Categoría">{{ team.category or '—' }}</td>
+                                <td data-label="Grupo">{{ team.group or '—' }}</td>
+                                <td data-label="Jugadores">{{ team.players|length }}</td>
+                                <td data-label="Acciones">
+                                    <div class="admin-row-actions">
+                                        <button type="button" class="btn-success"
+                                            onclick='openEditTeamModal({{ team.id }}, {{ team.name|tojson }}, {{ (team.coach or "")|tojson }}, {{ (team.category or "")|tojson }}, {{ (team.group or "")|tojson }})'>
+                                            Editar
+                                        </button>
+                                        <button type="button" class="btn-danger" onclick="deleteTeam({{ team.id }}, {{ team.name|tojson }})">
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="admin-empty">No hay equipos registrados aún</div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== PARTIDOS ===== -->
+    <section class="admin-tab-panel" id="tab-partidos" hidden>
+        <div class="admin-dashboard">
+            <div class="admin-section">
+                <h2>Programar Partido</h2>
+                <form id="createMatchForm" class="admin-form">
+                    <div class="form-group">
+                        <label>Equipo Local</label>
+                        <select name="team1_id" id="matchTeam1" onchange="autoFillMatchDetails()" required>
+                            <option value="">Seleccionar equipo...</option>
+                            {% for team in teams %}
+                                <option value="{{ team.id }}" data-category="{{ team.category or '' }}" data-group="{{ team.group or '' }}">{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Equipo Visitante</label>
+                        <select name="team2_id" id="matchTeam2" required>
+                            <option value="">Seleccionar equipo...</option>
+                            {% for team in teams %}
+                                <option value="{{ team.id }}" data-category="{{ team.category or '' }}" data-group="{{ team.group or '' }}">{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Categoría</label>
+                        <input type="text" name="category" id="matchCategory" placeholder="Ej: Femenil (se auto-llena)">
+                    </div>
+                    <div class="form-group">
+                        <label>Grupo</label>
+                        <input type="text" name="group" id="matchGroup" placeholder="Ej: Grupo A (se auto-llena)">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha y Hora</label>
+                        <input type="datetime-local" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Lugar / Foro</label>
+                        <input type="text" name="location" placeholder="Ej: Foro Boca 1">
+                    </div>
+                    <div class="form-group">
+                        <label>Cancha</label>
+                        <input type="text" name="cancha" placeholder="Ej: Cancha 1, Cancha A">
+                    </div>
+                    <div class="form-group">
+                        <label>Árbitro</label>
+                        <select name="referee_id" required>
+                            <option value="">Seleccionar árbitro...</option>
+                            {% for user in users if user.role == 'referee' %}
+                                <option value="{{ user.id }}">{{ user.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary">Programar Partido</button>
+                </form>
+            </div>
+
+            <div class="admin-section admin-section-wide">
+                <h2>Partidos programados</h2>
+                {% if matches_by_schedule %}
+                    {% for day_key, day in matches_by_schedule.items() %}
+                    <div class="schedule-block">
+                        <h3 class="schedule-day">{{ day.label }}</h3>
+                        {% for time_key, slot_matches in day.times.items() %}
+                        <h4 class="schedule-time">{{ time_key }}</h4>
+                        <div class="admin-table-wrap">
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Local</th>
+                                        <th>Visitante</th>
+                                        <th>Lugar</th>
+                                        <th>Cancha</th>
+                                        <th>Categoría / Grupo</th>
+                                        <th>Árbitro</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for match in slot_matches %}
+                                    <tr id="matchRow-{{ match.id }}">
+                                        <td data-label="Local"><strong>{{ match.home_team.name }}</strong></td>
+                                        <td data-label="Visitante"><strong>{{ match.away_team.name }}</strong></td>
+                                        <td data-label="Lugar">{{ match.location or '—' }}</td>
+                                        <td data-label="Cancha">{{ match.cancha or '—' }}</td>
+                                        <td data-label="Cat / Grupo">
+                                            {% if match.category or match.group %}
+                                                {{ match.category or '—' }} / {{ match.group or '—' }}
+                                            {% else %}
+                                                Sin definir
+                                            {% endif %}
+                                        </td>
+                                        <td data-label="Árbitro">{{ match.referee.username if match.referee else 'No asignado' }}</td>
+                                        <td data-label="Estado">
+                                            <span class="status-badge status-{{ match.status }}">{{ status_labels.get(match.status, match.status) }}</span>
+                                        </td>
+                                        <td data-label="Acciones">
+                                            <div class="admin-row-actions">
+                                                <button type="button" class="btn-success" onclick='openEditMatchModal({{ {
+                                                    "id": match.id,
+                                                    "team1_id": match.team1_id,
+                                                    "team2_id": match.team2_id,
+                                                    "date": match.date.strftime("%Y-%m-%dT%H:%M"),
+                                                    "location": match.location or "",
+                                                    "cancha": match.cancha or "",
+                                                    "category": match.category or "",
+                                                    "group": match.group or "",
+                                                    "referee_id": match.referee_id or "",
+                                                    "status": match.status
+                                                }|tojson }})'>Editar</button>
+                                                <button type="button" class="btn-danger" onclick="deleteMatch({{ match.id }})">Eliminar</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="admin-empty">No hay partidos programados aún</div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== USUARIOS ===== -->
+    <section class="admin-tab-panel" id="tab-usuarios" hidden>
+        <div class="admin-dashboard">
+            <div class="admin-section">
+                <h2>Crear Usuario</h2>
+                <form id="createUserForm" class="admin-form">
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input type="text" name="username" placeholder="nombre_usuario" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <input type="password" name="password" placeholder="••••••••" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Rol</label>
+                        <select name="role" id="userRole">
+                            <option value="team">Equipo</option>
+                            <option value="referee">Árbitro</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="teamSelectGroup">
+                        <label>Equipo</label>
+                        <select name="team_id" id="userTeamSelect">
+                            <option value="">Seleccionar equipo...</option>
+                            {% for team in teams %}
+                                <option value="{{ team.id }}">{{ team.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary">Crear Usuario</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== IMÁGENES ===== -->
+    <section class="admin-tab-panel" id="tab-imagenes" hidden>
+        <div class="admin-section banner-management">
+            <h2>Gestión de Imágenes</h2>
+            <p class="admin-help">Banner principal (hero) y patrocinadores de la programación pública.</p>
+
+            <div class="admin-upload-zone" id="uploadZone">
+                <form id="uploadBannerForm" enctype="multipart/form-data">
+                    <div class="admin-upload-grid">
+                        <div class="form-group" style="margin:0;">
+                            <label>Tipo de imagen</label>
+                            <select name="image_type" id="bannerType">
+                                <option value="hero">Banner principal (hero)</option>
+                                <option value="sponsor">Patrocinador / sponsor</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label>Título (opcional)</label>
+                            <input type="text" name="title" placeholder="Ej: Selectivo Estatal 2026">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Posición (orden)</label>
+                        <input type="number" name="position" value="0" min="0" max="99">
+                    </div>
+                    <div class="form-group">
+                        <label>Imagen</label>
+                        <input type="file" name="image" id="bannerFile" accept="image/*">
+                        <p class="admin-help">PNG, JPG, WEBP, GIF — máx 16MB</p>
+                    </div>
+                    <button type="submit" class="btn-primary">Subir Imagen</button>
+                </form>
+                <div id="uploadResult" style="margin-top: 12px; display: none;"></div>
+            </div>
+
+            <div id="imagePreview" style="display:none; margin-bottom: 16px; text-align:center;">
+                <img id="previewImg" src="" alt="preview" style="max-height: 160px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">
+            </div>
+
+            <h3 class="admin-subtitle">
+                Imágenes actuales
+                <span>({{ banners|length }})</span>
+            </h3>
+
+            {% if banners %}
+            <div class="banners-grid" id="bannersGrid">
+                {% for banner in banners %}
+                <div class="banner-card {% if not banner.active %}banner-inactive{% endif %}" id="bannerCard-{{ banner.id }}">
+                    <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or banner.image_type }}">
+                    <div class="banner-card-info">
+                        <div class="banner-type">
+                            {% if banner.image_type == 'hero' %}Hero{% else %}Sponsor{% endif %}
+                            · #{{ banner.position }}
+                        </div>
+                        <div class="banner-title">{{ banner.title or 'Sin título' }}</div>
+                        <div class="banner-status {% if banner.active %}is-on{% else %}is-off{% endif %}">
+                            {% if banner.active %}● Activo{% else %}○ Inactivo{% endif %}
+                        </div>
+                        <div class="banner-card-actions">
+                            <button class="btn-success" onclick="toggleBanner({{ banner.id }})">
+                                {% if banner.active %}Desactivar{% else %}Activar{% endif %}
+                            </button>
+                            <button class="btn-danger" onclick="deleteBanner({{ banner.id }})">Eliminar</button>
+                        </div>
                     </div>
                 </div>
-                <div class="form-group" style="margin-bottom: 12px;">
-                    <label>Posición (orden)</label>
-                    <input type="number" name="position" value="0" min="0" max="99">
-                </div>
-                <div style="margin-bottom: 16px;">
-                    <label style="display:block; font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--gray-700); margin-bottom:8px;">Imagen</label>
-                    <input type="file" name="image" id="bannerFile" accept="image/*"
-                           style="width:100%; padding: 10px; border: 2px solid var(--gray-200); border-radius: var(--radius-md); font-size: 0.9rem; cursor: pointer; background: white;">
-                    <p style="font-size:0.72rem; color:var(--gray-400); margin-top:4px;">PNG, JPG, WEBP, GIF — máx 16MB</p>
-                </div>
-                <button type="submit" class="btn-primary">Subir Imagen</button>
-            </form>
-            <div id="uploadResult" style="margin-top: 12px; display: none;"></div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="admin-empty">No hay imágenes subidas aún</div>
+            {% endif %}
         </div>
-
-        <!-- Image preview on upload -->
-        <div id="imagePreview" style="display:none; margin-bottom: 16px; text-align:center;">
-            <img id="previewImg" src="" alt="preview" style="max-height: 160px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">
-        </div>
-
-        <!-- Existing banners -->
-        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--dark);">
-            Imágenes actuales
-            <span style="font-size: 0.75rem; font-weight: 500; color: var(--gray-400); margin-left: 8px;">({{ banners|length }} imagen{% if banners|length != 1 %}es{% endif %})</span>
-        </h3>
-
-        {% if banners %}
-        <div class="banners-grid" id="bannersGrid">
-            {% for banner in banners %}
-            <div class="banner-card {% if not banner.active %}banner-inactive{% endif %}" id="bannerCard-{{ banner.id }}">
-                <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or banner.image_type }}">
-                <div class="banner-card-info">
-                    <div class="banner-type">
-                        {% if banner.image_type == 'hero' %}Hero{% else %}Sponsor{% endif %}
-                        · #{{ banner.position }}
-                    </div>
-                    <div class="banner-title">{{ banner.title or 'Sin título' }}</div>
-                    <div style="font-size: 0.7rem; color: {% if banner.active %}var(--success){% else %}var(--gray-400){% endif %}; font-weight: 700; margin-bottom: 6px;">
-                        {% if banner.active %}● Activo{% else %}○ Inactivo{% endif %}
-                    </div>
-                    <div class="banner-card-actions">
-                        <button class="btn-success" onclick="toggleBanner({{ banner.id }})">
-                            {% if banner.active %}Desactivar{% else %}Activar{% endif %}
-                        </button>
-                        <button class="btn-danger" onclick="deleteBanner({{ banner.id }})">Eliminar</button>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div style="text-align: center; padding: 32px; color: var(--gray-400); background: var(--gray-50); border-radius: var(--radius-lg);">
-            <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 48px; opacity: 0.5; margin-bottom: 12px;">
-            <p style="font-weight: 600;">No hay imágenes subidas aún</p>
-            <p style="font-size: 0.8rem; margin-top: 4px;">Sube una imagen de banner para el torneo</p>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- ===== CREAR USUARIO ===== -->
-    <div class="admin-section">
-        <h2>Crear Usuario</h2>
-        <form id="createUserForm" class="admin-form">
-            <div class="form-group">
-                <label>Usuario</label>
-                <input type="text" name="username" placeholder="nombre_usuario" required>
-            </div>
-            <div class="form-group">
-                <label>Contraseña</label>
-                <input type="password" name="password" placeholder="••••••••" required>
-            </div>
-            <div class="form-group">
-                <label>Rol</label>
-                <select name="role" id="userRole">
-                    <option value="team">Equipo</option>
-                    <option value="referee">Árbitro</option>
-                    <option value="admin">Administrador</option>
-                </select>
-            </div>
-            <div class="form-group" id="teamSelectGroup">
-                <label>Equipo</label>
-                <select name="team_id" id="userTeamSelect">
-                    <option value="">Seleccionar equipo...</option>
-                    {% for team in teams %}
-                        <option value="{{ team.id }}">{{ team.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit" class="btn-primary">Crear Usuario</button>
-        </form>
-    </div>
-
-    <!-- ===== CREAR EQUIPO ===== -->
-    <div class="admin-section">
-        <h2>Crear Equipo</h2>
-        <form id="createTeamForm" class="admin-form">
-            <div class="form-group">
-                <label>Nombre del equipo</label>
-                <input type="text" name="name" placeholder="Ej: Veracruz A" required>
-            </div>
-            <div class="form-group">
-                <label>Entrenador</label>
-                <input type="text" name="coach" placeholder="Nombre del entrenador" required>
-            </div>
-            <div class="form-group">
-                <label>Categoría</label>
-                <select name="category" id="teamCategory" onchange="toggleCustomCategory(this)">
-                    <option value="Femenil">Femenil</option>
-                    <option value="Varonil">Varonil</option>
-                    <option value="Mixto">Mixto</option>
-                    <option value="Libre">Libre</option>
-                    <option value="Otro">Otro...</option>
-                </select>
-                <input type="text" name="custom_category" id="customCategory" placeholder="Escribe la categoría..." style="display:none; margin-top:8px;">
-            </div>
-            <div class="form-group">
-                <label>Grupo</label>
-                <input type="text" name="group" placeholder="Ej: Grupo A, Grupo B (Opcional)">
-            </div>
-            <button type="submit" class="btn-primary">Crear Equipo</button>
-        </form>
-    </div>
-
-    <!-- ===== GESTIÓN DE EQUIPOS ===== -->
-    <div class="admin-section" style="grid-column: 1 / -1;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
-            <h2 style="margin:0;">Equipos Registrados</h2>
-            <button type="button" class="btn-danger" onclick="resetTournament()">Borrar todo el torneo</button>
-        </div>
-
-        {% if teams %}
-        <div style="overflow-x:auto;">
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Equipo</th>
-                        <th>Entrenador</th>
-                        <th>Categoría</th>
-                        <th>Grupo</th>
-                        <th>Jugadores</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="teamsTableBody">
-                    {% for team in teams %}
-                    <tr id="teamRow-{{ team.id }}">
-                        <td style="color:var(--gray-400);">#{{ team.id }}</td>
-                        <td><strong>{{ team.name }}</strong></td>
-                        <td>{{ team.coach or '—' }}</td>
-                        <td>{{ team.category or '—' }}</td>
-                        <td>{{ team.group or '—' }}</td>
-                        <td>{{ team.players|length }}</td>
-                        <td>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                <button type="button" class="btn-success"
-                                    onclick='openEditTeamModal({{ team.id }}, {{ team.name|tojson }}, {{ (team.coach or "")|tojson }}, {{ (team.category or "")|tojson }}, {{ (team.group or "")|tojson }})'>
-                                    Editar
-                                </button>
-                                <button type="button" class="btn-danger" onclick="deleteTeam({{ team.id }}, {{ team.name|tojson }})">
-                                    Eliminar
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div style="text-align:center; padding:32px; color:var(--gray-400); background:var(--gray-50); border-radius:var(--radius-lg);">
-            <p>No hay equipos registrados aún</p>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- ===== AGREGAR JUGADOR ===== -->
-    <div class="admin-section">
-        <h2>Agregar Jugador</h2>
-        <form id="addPlayerForm" class="admin-form">
-            <div class="form-group">
-                <label>Equipo</label>
-                <select name="team_id" required>
-                    <option value="">Seleccionar equipo...</option>
-                    {% for team in teams %}
-                        <option value="{{ team.id }}">{{ team.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Nombre</label>
-                <input type="text" name="name" placeholder="Nombre del jugador" required>
-            </div>
-            <div class="form-group">
-                <label>Número</label>
-                <input type="number" name="number" placeholder="# de camiseta" required>
-            </div>
-            <div class="form-group">
-                <label>Posición</label>
-                <input type="text" name="position" placeholder="Ej: Libero, Central...">
-            </div>
-            <button type="submit" class="btn-primary">Agregar Jugador</button>
-        </form>
-    </div>
-
-    <!-- ===== PROGRAMAR PARTIDO ===== -->
-    <div class="admin-section">
-        <h2>Programar Partido</h2>
-        <form id="createMatchForm" class="admin-form">
-            <div class="form-group">
-                <label>Equipo Local</label>
-                <select name="team1_id" id="matchTeam1" onchange="autoFillMatchDetails()" required>
-                    <option value="">Seleccionar equipo...</option>
-                    {% for team in teams %}
-                        <option value="{{ team.id }}" data-category="{{ team.category or '' }}" data-group="{{ team.group or '' }}">{{ team.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Equipo Visitante</label>
-                <select name="team2_id" id="matchTeam2" required>
-                    <option value="">Seleccionar equipo...</option>
-                    {% for team in teams %}
-                        <option value="{{ team.id }}" data-category="{{ team.category or '' }}" data-group="{{ team.group or '' }}">{{ team.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Categoría</label>
-                <input type="text" name="category" id="matchCategory" placeholder="Ej: Femenil (se auto-llena)">
-            </div>
-            <div class="form-group">
-                <label>Grupo</label>
-                <input type="text" name="group" id="matchGroup" placeholder="Ej: Grupo A (se auto-llena)">
-            </div>
-            <div class="form-group">
-                <label>Fecha y Hora</label>
-                <input type="datetime-local" name="date" required>
-            </div>
-            <div class="form-group">
-                <label>Lugar / Foro</label>
-                <input type="text" name="location" placeholder="Ej: Foro Boca 1">
-            </div>
-            <div class="form-group">
-                <label>Cancha</label>
-                <input type="text" name="cancha" placeholder="Ej: Cancha 1, Cancha A">
-            </div>
-            <div class="form-group">
-                <label>Árbitro</label>
-                <select name="referee_id" required>
-                    <option value="">Seleccionar árbitro...</option>
-                    {% for user in users if user.role == 'referee' %}
-                        <option value="{{ user.id }}">{{ user.username }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit" class="btn-primary">Programar Partido</button>
-        </form>
-    </div>
-
-    <!-- ===== PARTIDOS PROGRAMADOS ===== -->
-    <div class="admin-section" style="grid-column: 1 / -1;">
-        <h2>Partidos Programados</h2>
-        {% if matches %}
-        <div style="overflow-x: auto;">
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Fecha</th>
-                        <th>Local</th>
-                        <th>Visitante</th>
-                        <th>Lugar</th>
-                        <th>Cancha</th>
-                        <th>Categoría / Grupo</th>
-                        <th>Árbitro</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody id="matchesTableBody">
-                    {% for match in matches %}
-                    <tr data-match-id="{{ match.id }}">
-                        <td style="color:var(--gray-400);">#{{ match.id }}</td>
-                        <td>{{ match.date.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td><strong>{{ match.home_team.name }}</strong></td>
-                        <td><strong>{{ match.away_team.name }}</strong></td>
-                        <td style="color:var(--gray-500);">{{ match.location or '—' }}</td>
-                        <td style="color:var(--gray-500);">{{ match.cancha or '—' }}</td>
-                        <td>
-                            {% if match.category or match.group %}
-                                {{ match.category or '—' }} / {{ match.group or '—' }}
-                            {% else %}
-                                <span style="color:var(--gray-400);">Sin definir</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ match.referee.username if match.referee else '<span style="color:var(--gray-400);">No asignado</span>' }}</td>
-                        <td>
-                            <span class="status-badge status-{{ match.status }}">{{ match.status }}</span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div style="text-align:center; padding: 32px; color: var(--gray-400);">
-            <p>No hay partidos programados aún</p>
-        </div>
-        {% endif %}
-    </div>
-
+    </section>
 </div>
 
 <!-- Modal editar equipo -->
-<div id="editTeamModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:10000; align-items:center; justify-content:center; padding:16px;">
-    <div style="background:white; border-radius:16px; width:100%; max-width:480px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.25);">
-        <h3 style="margin:0 0 16px; font-family:'Outfit',sans-serif;">Editar equipo</h3>
+<div id="editTeamModal" class="admin-modal">
+    <div class="admin-modal-card">
+        <h3>Editar equipo</h3>
         <form id="editTeamForm" class="admin-form">
             <input type="hidden" name="team_id" id="editTeamId">
             <div class="form-group">
@@ -374,17 +567,92 @@
                 <label>Grupo</label>
                 <input type="text" name="group" id="editTeamGroup" placeholder="Ej: Grupo A">
             </div>
-            <div style="display:flex; gap:10px; margin-top:8px;">
-                <button type="submit" class="btn-primary">Guardar cambios</button>
-                <button type="button" class="btn-secondary" onclick="closeEditTeamModal()">Cancelar</button>
+        </form>
+    </div>
+</div>
+
+<div id="editMatchModal" class="admin-modal">
+    <div class="admin-modal-card">
+        <h3>Editar partido / horario</h3>
+        <form id="editMatchForm" class="admin-form">
+            <input type="hidden" id="editMatchId">
+            <div class="form-group">
+                <label>Equipo local</label>
+                <select name="team1_id" id="editMatchTeam1">
+                    {% for team in teams %}
+                    <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Equipo visitante</label>
+                <select name="team2_id" id="editMatchTeam2">
+                    {% for team in teams %}
+                    <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Fecha y hora</label>
+                <input type="datetime-local" name="date" id="editMatchDate" required>
+            </div>
+            <div class="form-group">
+                <label>Lugar / Foro</label>
+                <input type="text" name="location" id="editMatchLocation">
+            </div>
+            <div class="form-group">
+                <label>Cancha</label>
+                <input type="text" name="cancha" id="editMatchCancha">
+            </div>
+            <div class="form-group">
+                <label>Categoría</label>
+                <input type="text" name="category" id="editMatchCategory">
+            </div>
+            <div class="form-group">
+                <label>Grupo</label>
+                <input type="text" name="group" id="editMatchGroup">
+            </div>
+            <div class="form-group">
+                <label>Árbitro</label>
+                <select name="referee_id" id="editMatchReferee">
+                    <option value="">Sin árbitro</option>
+                    {% for user in users if user.role == 'referee' %}
+                    <option value="{{ user.id }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <p class="admin-help" id="editMatchTeamsHint" hidden>Los equipos no se pueden cambiar si el partido ya empezó.</p>
+            <div class="admin-row-actions">
+                <button type="submit" class="btn-primary">Guardar horario</button>
+                <button type="button" class="btn-secondary" onclick="closeEditMatchModal()">Cancelar</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-// ==== BANNER IMAGE MANAGEMENT ====
-// Preview before upload
+function showAdminTab(id) {
+    document.querySelectorAll('.admin-tab-panel').forEach(panel => {
+        panel.hidden = panel.id !== 'tab-' + id;
+    });
+    document.querySelectorAll('.admin-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === id);
+    });
+    sessionStorage.setItem('adminTab', id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.getElementById('adminTabs').addEventListener('click', function(e) {
+    const btn = e.target.closest('.admin-tab');
+    if (!btn) return;
+    showAdminTab(btn.dataset.tab);
+});
+
+const savedTab = sessionStorage.getItem('adminTab');
+if (savedTab && document.getElementById('tab-' + savedTab)) {
+    showAdminTab(savedTab);
+}
+
 document.getElementById('bannerFile').addEventListener('change', function() {
     const file = this.files[0];
     if (file) {
@@ -397,12 +665,11 @@ document.getElementById('bannerFile').addEventListener('change', function() {
     }
 });
 
-// Upload banner
 document.getElementById('uploadBannerForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
     const btn = this.querySelector('[type=submit]');
-    btn.textContent = '⏳ Subiendo...';
+    btn.textContent = 'Subiendo...';
     btn.disabled = true;
 
     try {
@@ -411,21 +678,20 @@ document.getElementById('uploadBannerForm').addEventListener('submit', async fun
         const resultDiv = document.getElementById('uploadResult');
         resultDiv.style.display = 'block';
         if (result.success) {
-            resultDiv.innerHTML = '<div style="background:rgba(16,185,129,0.1);color:var(--success);padding:10px;border-radius:8px;font-weight:600;">✅ Imagen subida exitosamente</div>';
+            resultDiv.innerHTML = '<div class="admin-flash ok">Imagen subida exitosamente</div>';
             this.reset();
             document.getElementById('imagePreview').style.display = 'none';
             setTimeout(() => location.reload(), 1200);
         } else {
-            resultDiv.innerHTML = `<div style="background:rgba(239,68,68,0.1);color:var(--danger);padding:10px;border-radius:8px;font-weight:600;">❌ Error: ${result.error}</div>`;
+            resultDiv.innerHTML = `<div class="admin-flash err">Error: ${result.error}</div>`;
         }
     } catch(err) {
         console.error(err);
     }
-    btn.textContent = '⬆️ Subir Imagen';
+    btn.textContent = 'Subir Imagen';
     btn.disabled = false;
 });
 
-// Delete banner
 async function deleteBanner(id) {
     if (!confirm('¿Eliminar esta imagen?')) return;
     const response = await fetch(`/admin/delete_banner/${id}`, { method: 'POST' });
@@ -439,7 +705,6 @@ async function deleteBanner(id) {
     }
 }
 
-// Toggle banner active/inactive
 async function toggleBanner(id) {
     const response = await fetch(`/admin/toggle_banner/${id}`, { method: 'POST' });
     const result = await response.json();
@@ -448,7 +713,6 @@ async function toggleBanner(id) {
     }
 }
 
-// ==== USER ROLE - SHOW/HIDE TEAM ====
 function updateTeamSelectForRole() {
     const role = document.getElementById('userRole').value;
     const teamGroup = document.getElementById('teamSelectGroup');
@@ -476,10 +740,8 @@ function autoFillMatchDetails() {
     const t1 = document.getElementById('matchTeam1');
     const opt = t1.options[t1.selectedIndex];
     if (opt && opt.value) {
-        const cat = opt.dataset.category || '';
-        const grp = opt.dataset.group || '';
-        document.getElementById('matchCategory').value = cat;
-        document.getElementById('matchGroup').value = grp;
+        document.getElementById('matchCategory').value = opt.dataset.category || '';
+        document.getElementById('matchGroup').value = opt.dataset.group || '';
     }
 }
 
@@ -517,12 +779,11 @@ function openEditTeamModal(id, name, coach, category, group) {
         customInput.value = '';
     }
 
-    const modal = document.getElementById('editTeamModal');
-    modal.style.display = 'flex';
+    document.getElementById('editTeamModal').classList.add('is-open');
 }
 
 function closeEditTeamModal() {
-    document.getElementById('editTeamModal').style.display = 'none';
+    document.getElementById('editTeamModal').classList.remove('is-open');
 }
 
 document.getElementById('editTeamForm').addEventListener('submit', async function(e) {
@@ -532,11 +793,11 @@ document.getElementById('editTeamForm').addEventListener('submit', async functio
     const response = await fetch(`/admin/edit_team/${teamId}`, { method: 'POST', body: formData });
     const result = await response.json();
     if (result.success) {
-        showToast('✅ Equipo actualizado');
+        showToast('Equipo actualizado');
         closeEditTeamModal();
         setTimeout(() => location.reload(), 800);
     } else {
-        showToast('❌ Error: ' + result.error, true);
+        showToast('Error: ' + result.error, true);
     }
 });
 
@@ -545,12 +806,12 @@ async function deleteTeam(id, name) {
     const response = await fetch(`/admin/delete_team/${id}`, { method: 'POST' });
     const result = await response.json();
     if (result.success) {
-        showToast('✅ Equipo eliminado');
+        showToast('Equipo eliminado');
         const row = document.getElementById(`teamRow-${id}`);
         if (row) row.remove();
         setTimeout(() => location.reload(), 800);
     } else {
-        showToast('❌ Error: ' + (result.error || 'No se pudo eliminar'), true);
+        showToast('Error: ' + (result.error || 'No se pudo eliminar'), true);
     }
 }
 
@@ -566,10 +827,10 @@ async function resetTournament() {
     const response = await fetch('/admin/reset_tournament', { method: 'POST' });
     const result = await response.json();
     if (result.success) {
-        showToast('✅ Torneo reiniciado');
+        showToast('Torneo reiniciado');
         setTimeout(() => location.reload(), 1000);
     } else {
-        showToast('❌ Error: ' + (result.error || 'No se pudo reiniciar'), true);
+        showToast('Error: ' + (result.error || 'No se pudo reiniciar'), true);
     }
 }
 
@@ -577,19 +838,72 @@ document.getElementById('editTeamModal').addEventListener('click', function(e) {
     if (e.target === this) closeEditTeamModal();
 });
 
-// ==== FORM SUBMISSIONS ====
+function openEditMatchModal(match) {
+    document.getElementById('editMatchId').value = match.id;
+    document.getElementById('editMatchTeam1').value = match.team1_id;
+    document.getElementById('editMatchTeam2').value = match.team2_id;
+    document.getElementById('editMatchDate').value = match.date;
+    document.getElementById('editMatchLocation').value = match.location || '';
+    document.getElementById('editMatchCancha').value = match.cancha || '';
+    document.getElementById('editMatchCategory').value = match.category || '';
+    document.getElementById('editMatchGroup').value = match.group || '';
+    document.getElementById('editMatchReferee').value = match.referee_id || '';
+    const locked = match.status !== 'pending';
+    document.getElementById('editMatchTeam1').disabled = locked;
+    document.getElementById('editMatchTeam2').disabled = locked;
+    document.getElementById('editMatchTeamsHint').hidden = !locked;
+    document.getElementById('editMatchModal').classList.add('is-open');
+}
+
+function closeEditMatchModal() {
+    document.getElementById('editMatchModal').classList.remove('is-open');
+}
+
+document.getElementById('editMatchModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditMatchModal();
+});
+
+document.getElementById('editMatchForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editMatchId').value;
+    const formData = new FormData(this);
+    const response = await fetch(`/admin/edit_match/${id}`, { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast('Partido actualizado');
+        closeEditMatchModal();
+        setTimeout(() => location.reload(), 800);
+    } else {
+        showToast('Error: ' + (result.error || 'No se pudo editar'), true);
+    }
+});
+
+async function deleteMatch(id) {
+    if (!confirm('¿Eliminar este partido del horario?')) return;
+    const response = await fetch(`/admin/delete_match/${id}`, { method: 'POST' });
+    const result = await response.json();
+    if (result.success) {
+        showToast('Partido eliminado');
+        const row = document.getElementById(`matchRow-${id}`);
+        if (row) row.remove();
+        setTimeout(() => location.reload(), 700);
+    } else {
+        showToast('Error: ' + (result.error || 'No se pudo eliminar'), true);
+    }
+}
+
 document.getElementById('createUserForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
     const response = await fetch('/admin/create_user', { method: 'POST', body: formData });
     const result = await response.json();
     if (result.success) {
-        showToast('✅ Usuario creado exitosamente');
+        showToast('Usuario creado exitosamente');
         this.reset();
         updateTeamSelectForRole();
         setTimeout(() => location.reload(), 800);
     } else {
-        showToast('❌ Error: ' + (result.error || 'No se pudo crear el usuario'), true);
+        showToast('Error: ' + (result.error || 'No se pudo crear el usuario'), true);
     }
 });
 
@@ -599,11 +913,11 @@ document.getElementById('createTeamForm').addEventListener('submit', async funct
     const response = await fetch('/admin/create_team', { method: 'POST', body: formData });
     const result = await response.json();
     if (result.success) {
-        showToast('✅ Equipo creado exitosamente');
+        showToast('Equipo creado exitosamente');
         this.reset();
         setTimeout(() => location.reload(), 1000);
     } else {
-        showToast('❌ Error: ' + result.error, true);
+        showToast('Error: ' + result.error, true);
     }
 });
 
@@ -613,10 +927,10 @@ document.getElementById('addPlayerForm').addEventListener('submit', async functi
     const response = await fetch('/admin/add_player', { method: 'POST', body: formData });
     const result = await response.json();
     if (result.success) {
-        showToast('✅ Jugador agregado exitosamente');
+        showToast('Jugador agregado exitosamente');
         this.reset();
     } else {
-        showToast('❌ Error: ' + result.error, true);
+        showToast('Error: ' + result.error, true);
     }
 });
 
@@ -626,29 +940,53 @@ document.getElementById('createMatchForm').addEventListener('submit', async func
     const response = await fetch('/admin/create_match', { method: 'POST', body: formData });
     const result = await response.json();
     if (result.success) {
-        showToast('✅ Partido programado exitosamente');
+        showToast('Partido programado exitosamente');
         this.reset();
         setTimeout(() => location.reload(), 1000);
     } else {
-        showToast('❌ Error: ' + result.error, true);
+        showToast('Error: ' + result.error, true);
     }
 });
 
-// ==== TOAST NOTIFICATION ====
+document.getElementById('randomGroupsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    if (!formData.get('only_unassigned')) formData.set('only_unassigned', '0');
+    if (!confirm('Esto asignará grupos al azar. ¿Continuar?')) return;
+    const response = await fetch('/admin/random_groups', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast('Grupos sorteados: ' + result.groups.join(', '));
+        setTimeout(() => location.reload(), 900);
+    } else {
+        showToast('Error: ' + (result.error || 'No se pudo sortear'), true);
+    }
+});
+
+document.getElementById('randomMatchesForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    if (!formData.get('by_group')) formData.set('by_group', '0');
+    if (!formData.get('skip_existing')) formData.set('skip_existing', '0');
+    if (!confirm('Se generarán partidos aleatorios con estos datos. ¿Continuar?')) return;
+    const response = await fetch('/admin/random_matches', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.success) {
+        showToast(result.created + ' partidos generados');
+        setTimeout(() => location.reload(), 900);
+    } else {
+        showToast('Error: ' + (result.error || 'No se pudieron generar'), true);
+    }
+});
+
 function showToast(message, isError = false) {
     const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
-        background: ${isError ? 'var(--danger)' : 'var(--success)'}; color: white;
-        padding: 14px 24px; border-radius: 12px; font-weight: 700; font-size: 0.9rem;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 9999;
-        transition: transform 0.3s ease, opacity 0.3s ease;
-    `;
+    toast.className = 'admin-toast' + (isError ? ' is-error' : '');
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.style.transform = 'translateX(-50%) translateY(0)', 10);
+    setTimeout(() => toast.classList.add('is-show'), 10);
     setTimeout(() => {
-        toast.style.opacity = '0';
+        toast.classList.remove('is-show');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }

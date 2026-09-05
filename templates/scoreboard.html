@@ -1,295 +1,293 @@
 {% extends "base.html" %}
-{% block title %}Marcador - {{ match.home_team.name }} vs {{ match.away_team.name }}{% endblock %}
+{% block title %}Árbitro · {{ match.home_team.name }} vs {{ match.away_team.name }}{% endblock %}
+{% block body_class %}ref-mode{% endblock %}
 
 {% block content %}
-<div class="scoreboard-container" data-match-id="{{ match.id }}">
+<div class="ref-live" id="refLive" data-match-id="{{ match.id }}">
+    <header class="ref-top">
+        <a href="{{ url_for('referee_dashboard') }}" class="ref-back">←</a>
+        <div class="ref-top-mid">
+            <span id="refClock">00:00</span>
+            <span id="refSetLabel">Set 1</span>
+        </div>
+        <span class="ref-status" id="refStatus">EN VIVO</span>
+    </header>
 
-    <!-- Match Header -->
-    <div style="text-align: center; margin-bottom: 8px;">
-        <span class="status-badge status-{{ match.status }}" id="matchStatusBadge" style="margin: 0 auto;">
-            {% if match.status == 'pending' %}Pendiente
-            {% elif match.status == 'active' %}EN VIVO
-            {% else %}Finalizado{% endif %}
-        </span>
+    <div class="ref-names">
+        <div class="ref-name mag" id="leftName">{{ match.home_team.name }}</div>
+        <button type="button" class="ref-swap" id="btnSwap" title="Cambiar de campo">⇄</button>
+        <div class="ref-name wht" id="rightName">{{ match.away_team.name }}</div>
     </div>
 
-    <h1>Marcador</h1>
+    <div class="ref-scores">
+        <button type="button" class="ref-oval mag" id="btnLeftScore">
+            <small id="leftSets">0</small>
+            <span id="leftPoints">0</span>
+            <img src="/assets/pelota-de-voleibol.png" class="ref-ball" id="leftBall" alt="">
+        </button>
+        <button type="button" class="ref-oval wht" id="btnRightScore">
+            <small id="rightSets">0</small>
+            <span id="rightPoints">0</span>
+            <img src="/assets/pelota-de-voleibol.png" class="ref-ball" id="rightBall" alt="">
+        </button>
+    </div>
+    <p class="ref-mini-score" id="miniScore">0-0</p>
+    <p class="ref-banner" id="suddenBanner" hidden>MUERTE SÚBITA — el siguiente punto gana el set</p>
+    <p class="ref-banner win" id="winBanner" hidden></p>
 
-    <!-- Teams -->
-    <div class="match-info">
-        <div class="teams">
-            <div class="team" style="text-align: right;">{{ match.home_team.name }}</div>
-            <div class="vs">VS</div>
-            <div class="team" style="text-align: left;">{{ match.away_team.name }}</div>
-        </div>
-
-        <!-- Sets summary -->
-        <div style="display: flex; justify-content: center; align-items: center; gap: 16px; margin: 8px 0;">
-            <div style="text-align: center;">
-                <span id="totalSets1" style="font-size: 2rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--primary);">0</span>
-                <span style="font-size: 1.5rem; font-weight: 900; color: var(--gray-300); margin: 0 8px;">–</span>
-                <span id="totalSets2" style="font-size: 2rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--primary);">0</span>
-            </div>
-        </div>
-        <p style="font-size: 0.75rem; color: var(--gray-400); text-align:center;">Sets ganados</p>
-
-        <div class="details">
-            <p>Ubicación: {{ match.location }}{% if match.cancha %} · Cancha {{ match.cancha }}{% endif %}</p>
-            <p>Fecha: {{ match.date.strftime('%d/%m/%Y %H:%M') }}</p>
-            <p>Árbitro: {{ match.referee.username }}</p>
-        </div>
+    <div class="ref-actions">
+        <span class="ref-dot" id="leftTimeoutDot"></span>
+        <button type="button" class="ref-round mag" id="btnLeftTimeout" title="Tiempo muerto">⏱</button>
+        <button type="button" class="ref-round mag" id="btnLeftCard" title="Sanción">▣</button>
+        <button type="button" class="ref-round yellow" id="btnUndo" title="Deshacer">↩</button>
+        <button type="button" class="ref-round wht" id="btnRightCard" title="Sanción">▣</button>
+        <button type="button" class="ref-round wht" id="btnRightTimeout" title="Tiempo muerto">⏱</button>
+        <span class="ref-dot" id="rightTimeoutDot"></span>
     </div>
 
-    <!-- Winner Banner -->
-    {% if match.winner_id and match.winner %}
-    <div style="background: linear-gradient(135deg, var(--warning), var(--primary)); color: white; padding: 16px; border-radius: var(--radius-lg); text-align: center; margin-bottom: 20px;">
-        <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 32px; filter: brightness(0) invert(1); margin-bottom: 4px;">
-        <p style="font-size: 1rem; font-weight: 800; font-family: 'Outfit', sans-serif;">GANADOR: {{ match.winner.name }}</p>
-    </div>
-    {% endif %}
+    <nav class="ref-tabs">
+        <button type="button" class="is-on" data-panel="pos">Posiciones</button>
+        <button type="button" data-panel="stats">Estadísticas</button>
+        <button type="button" data-panel="times">Tiempos</button>
+        <button type="button" data-panel="cards">Sanciones</button>
+    </nav>
 
-    <!-- Sets -->
-    <div class="scoreboard">
-        <div class="sets-container" id="setsContainer">
-            {% for set in match.sets %}
-            <div class="set-card {% if set.completed %}set-done{% endif %}" data-set="{{ set.set_number }}">
-                <h3>Set {{ set.set_number }} {% if set.completed %}(Completado){% endif %}</h3>
-                <div class="points">
-                    <div class="team-points">
-                        <span class="team-name">{{ match.home_team.name }}</span>
-                        <input type="number" class="team1-points" value="{{ set.team1_points }}" min="0" max="99"
-                               {% if match.status == 'completed' %}disabled{% endif %}>
-                    </div>
-                    <div style="display:flex; align-items:center; padding: 0 12px; font-size: 1.2rem; color: var(--gray-300);">–</div>
-                    <div class="team-points">
-                        <span class="team-name">{{ match.away_team.name }}</span>
-                        <input type="number" class="team2-points" value="{{ set.team2_points }}" min="0" max="99"
-                               {% if match.status == 'completed' %}disabled{% endif %}>
-                    </div>
-                </div>
-                {% if match.status != 'completed' %}
-                <label class="set-completed">
-                    <input type="checkbox" class="set-completed-checkbox" {% if set.completed %}checked{% endif %}>
-                    Set completado
-                </label>
-                <button class="btn-update-set" data-match-id="{{ match.id }}" data-set-number="{{ set.set_number }}">
-                    Actualizar Set
-                </button>
-                {% else %}
-                <div style="text-align:center; font-size:0.75rem; color:var(--gray-400); margin-top:8px; font-weight:600;">
-                    {% if set.team1_points > set.team2_points %}
-                        Ganó {{ match.home_team.name }}
-                    {% elif set.team2_points > set.team1_points %}
-                        Ganó {{ match.away_team.name }}
-                    {% else %}
-                        Empate
-                    {% endif %}
-                </div>
-                {% endif %}
+    <section class="ref-panel" id="panel-pos">
+        <div class="ref-court" id="court">
+            <div class="ref-half mag">
+                <button type="button" class="ref-player mag" id="lp0">1</button>
+                <button type="button" class="ref-player mag" id="lp1">2</button>
             </div>
-            {% endfor %}
-
-            {% if match.sets|length < 5 and match.status != 'completed' %}
-            <div class="set-card new-set">
-                <h3>Nuevo Set</h3>
-                <div class="points">
-                    <div class="team-points">
-                        <span class="team-name">{{ match.home_team.name }}</span>
-                        <input type="number" id="newTeam1Points" value="0" min="0" max="99">
-                    </div>
-                    <div style="display:flex; align-items:center; padding: 0 12px; font-size: 1.2rem; color: var(--gray-300);">–</div>
-                    <div class="team-points">
-                        <span class="team-name">{{ match.away_team.name }}</span>
-                        <input type="number" id="newTeam2Points" value="0" min="0" max="99">
-                    </div>
-                </div>
-                <label class="set-completed">
-                    <input type="checkbox" id="newSetCompleted">
-                    Set completado
-                </label>
-                <button class="btn-primary" id="addSetBtn" data-match-id="{{ match.id }}">
-                    Agregar Set
-                </button>
+            <div class="ref-net"></div>
+            <div class="ref-half wht">
+                <button type="button" class="ref-player wht" id="rp0">1</button>
+                <button type="button" class="ref-player wht" id="rp1">2</button>
             </div>
-            {% endif %}
+            <img src="/assets/pelota-de-voleibol.png" class="ref-court-ball" id="courtBall" alt="">
         </div>
-
-        <!-- Match Status Panel -->
-        <div class="match-status">
-            <h3>Estado del Partido</h3>
-            <p style="margin: 8px 0; font-size:0.85rem;">Estado: <span id="matchStatus" class="status-badge status-{{ match.status }}">{{ match.status }}</span></p>
-            <div id="winnerInfo" style="margin: 8px 0;">
-                {% if match.winner_id and match.winner %}
-                <p style="font-size:0.9rem;">Ganador: <strong id="winnerName">{{ match.winner.name }}</strong></p>
-                {% elif match.status == 'completed' %}
-                <p style="font-size:0.9rem;">Ganador: <strong id="winnerName">Por definir</strong></p>
-                {% else %}
-                <p style="font-size:0.9rem; color:var(--gray-400);">Ganador: <span id="winnerName">—</span></p>
-                {% endif %}
-            </div>
-            {% if match.status != 'completed' %}
-            <button id="completeMatchBtn" class="btn-primary" data-match-id="{{ match.id }}"
-                    style="margin-top: 12px; background: linear-gradient(135deg, var(--success), var(--primary));">
-                Finalizar Partido
-            </button>
-            {% endif %}
+        <p class="ref-hint">Toca un jugador para hacer switch. El balón pasa al que anota (el que recibe el saque).</p>
+        <div class="ref-finish" id="finishBar">
+            <button type="button" class="ref-btn-set" id="btnCloseSet">Cerrar set</button>
+            <button type="button" class="ref-btn-end" id="btnFinishMatch">Finalizar partido</button>
         </div>
+    </section>
+
+    <section class="ref-panel" id="panel-stats" hidden>
+        <div class="ref-stat-grid" id="statGrid"></div>
+        <ul class="ref-log" id="statsLog"></ul>
+    </section>
+
+    <section class="ref-panel" id="panel-times" hidden>
+        <ul class="ref-log" id="timesLog"></ul>
+    </section>
+
+    <section class="ref-panel" id="panel-cards" hidden>
+        <ul class="ref-log" id="cardsLog"></ul>
+        <div class="ref-obs" id="obsBox"></div>
+    </section>
+
+    <div class="ref-bar" id="courtBar" hidden>
+        <span>Cambio de cancha (7 puntos)</span>
+        <button type="button" id="btnCourtChange">Aceptar</button>
     </div>
 </div>
 
+<div class="ref-modal" id="sanctionModal" hidden>
+    <div class="ref-modal-card">
+        <h3 id="sanctionTitle">Sanción</h3>
+        <label>Tipo</label>
+        <select id="sanctionType">
+            <option value="admonition">Amonestación</option>
+            <option value="delay">Demora</option>
+            <option value="switch">Switch</option>
+        </select>
+        <label>Observación</label>
+        <textarea id="sanctionNote" rows="3" placeholder="Detalle..."></textarea>
+        <div id="signWrap" hidden>
+            <label>Firma (obligatoria en demora)</label>
+            <input type="text" id="sanctionSign" placeholder="Nombre y firma del árbitro">
+        </div>
+        <div class="ref-modal-actions">
+            <button type="button" class="btn-secondary" id="sanctionCancel">Cancelar</button>
+            <button type="button" class="btn-primary" id="sanctionOk">Guardar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-let CURRENT_MATCH_ID = null;
+const MATCH_ID = {{ match.id }};
+let STATE = null;
+let sanctionTeam = 1;
+const LABELS = {
+    point: 'Punto',
+    timeout: 'Tiempo muerto',
+    delay: 'Demora',
+    admonition: 'Amonestación',
+    switch: 'Switch',
+    court_change: 'Cambio de cancha',
+    court_change_due: 'Cambio a los 7',
+    set_won: 'Set ganado',
+    swap_sides: 'Cambio de campo',
+    match_complete: 'Partido finalizado',
+};
 
-function updateSetTotals(sets) {
-    let s1 = 0, s2 = 0;
-    sets.forEach(s => {
-        if (s.completed) {
-            if (s.team1_points > s.team2_points) s1++;
-            else if (s.team2_points > s.team1_points) s2++;
-        }
-    });
-    document.getElementById('totalSets1').textContent = s1;
-    document.getElementById('totalSets2').textContent = s2;
+function toast(msg, err) {
+    const el = document.createElement('div');
+    el.className = 'admin-toast' + (err ? ' is-error' : '');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add('is-show'), 10);
+    setTimeout(() => { el.classList.remove('is-show'); setTimeout(() => el.remove(), 300); }, 2800);
 }
 
-async function updateSet(matchId, setNumber) {
-    const setCard = document.querySelector(`.set-card[data-set="${setNumber}"]`);
-    const team1Points = setCard.querySelector('.team1-points').value;
-    const team2Points = setCard.querySelector('.team2-points').value;
-    const completed = setCard.querySelector('.set-completed-checkbox').checked;
-
-    const btn = setCard.querySelector('.btn-update-set');
-    btn.textContent = '⏳ Guardando...';
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/referee/update_score', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ match_id: matchId, set_number: setNumber, team1_points: parseInt(team1Points), team2_points: parseInt(team2Points), completed })
-        });
-        const result = await response.json();
-        if (result.success) {
-            btn.textContent = '✅ Guardado';
-            setTimeout(() => {
-                btn.textContent = 'Actualizar Set';
-                btn.disabled = false;
-            }, 1500);
-            updateMatchStatus();
-        } else {
-            btn.textContent = '❌ Error';
-            btn.disabled = false;
-        }
-    } catch(e) {
-        btn.textContent = 'Actualizar Set';
-        btn.disabled = false;
-    }
-}
-
-async function addSet(matchId) {
-    const setsCount = document.querySelectorAll('.set-card:not(.new-set)').length;
-    const newSetNumber = setsCount + 1;
-    const team1Points = document.getElementById('newTeam1Points').value;
-    const team2Points = document.getElementById('newTeam2Points').value;
-    const completed = document.getElementById('newSetCompleted').checked;
-
-    const response = await fetch('/referee/update_score', {
+async function postLive(url, body = {}) {
+    const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match_id: matchId, set_number: newSetNumber, team1_points: parseInt(team1Points), team2_points: parseInt(team2Points), completed })
+        body: JSON.stringify({ match_id: MATCH_ID, ...body }),
     });
-    const result = await response.json();
-    if (result.success) {
-        location.reload();
+    const data = await res.json();
+    if (!res.ok) {
+        toast(data.error || 'Error', true);
+        return null;
     }
+    render(data);
+    return data;
 }
 
-async function completeMatch(matchId) {
-    if (!confirm('¿Marcar este partido como finalizado?')) return;
-    const btn = document.getElementById('completeMatchBtn');
-    btn.textContent = '⏳ Finalizando...';
-    btn.disabled = true;
+function render(s) {
+    STATE = s;
+    const L = s.left, R = s.right;
+    document.getElementById('leftName').textContent = L.name;
+    document.getElementById('rightName').textContent = R.name;
+    document.getElementById('leftPoints').textContent = L.points;
+    document.getElementById('rightPoints').textContent = R.points;
+    document.getElementById('leftSets').textContent = L.sets;
+    document.getElementById('rightSets').textContent = R.sets;
+    document.getElementById('miniScore').textContent = L.points + '-' + R.points;
+    document.getElementById('refClock').textContent = s.elapsed_label;
+    document.getElementById('refSetLabel').textContent = 'Set ' + s.set_number;
+    document.getElementById('leftBall').classList.toggle('on', L.has_ball);
+    document.getElementById('rightBall').classList.toggle('on', R.has_ball);
+    document.getElementById('leftTimeoutDot').classList.toggle('used', L.timeout_used);
+    document.getElementById('rightTimeoutDot').classList.toggle('used', R.timeout_used);
+    document.getElementById('btnLeftTimeout').disabled = L.timeout_used || s.completed;
+    document.getElementById('btnRightTimeout').disabled = R.timeout_used || s.completed;
 
-    const response = await fetch('/referee/complete_match', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match_id: matchId })
+    const st = document.getElementById('refStatus');
+    st.textContent = s.completed ? 'FIN' : (s.sudden_death ? 'SÚBITA' : 'EN VIVO');
+    st.className = 'ref-status' + (s.completed ? ' done' : s.sudden_death ? ' sudden' : '');
+
+    document.getElementById('suddenBanner').hidden = !s.sudden_death || s.completed;
+    const win = document.getElementById('winBanner');
+    if (s.completed && s.winner_name) {
+        win.hidden = false;
+        win.textContent = 'GANADOR: ' + s.winner_name;
+    } else win.hidden = true;
+
+    document.getElementById('courtBar').hidden = !s.court_change_pending;
+    document.getElementById('btnLeftScore').disabled = s.locked || s.completed;
+    document.getElementById('btnRightScore').disabled = s.locked || s.completed;
+    const finishBar = document.getElementById('finishBar');
+    if (finishBar) finishBar.hidden = s.completed;
+
+    (L.players || []).forEach((p, i) => {
+        const el = document.getElementById('lp' + i);
+        if (el) el.textContent = p.number;
     });
-    const result = await response.json();
-    if (result.success) {
-        location.reload();
-    } else {
-        btn.textContent = '🏁 Finalizar Partido';
-        btn.disabled = false;
-    }
+    (R.players || []).forEach((p, i) => {
+        const el = document.getElementById('rp' + i);
+        if (el) el.textContent = p.number;
+    });
+    document.getElementById('court').classList.toggle('ball-right', R.has_ball);
+    document.getElementById('court').classList.toggle('ball-left', L.has_ball);
+
+        const eventLine = (e) => {
+            const teamName = e.team === 1
+                ? (s.left.team === 1 ? s.left.name : s.right.name)
+                : e.team === 2
+                    ? (s.left.team === 2 ? s.left.name : s.right.name)
+                    : '';
+            return `<li><strong>${LABELS[e.type] || e.type}</strong> · ${teamName} · ${e.score} · min ${e.minute}${e.note ? ' · ' + e.note : ''}${e.signature ? ' · firmado' : ''}</li>`;
+        };
+    document.getElementById('statsLog').innerHTML = s.events.map(eventLine).join('') || '<li>Sin jugadas aún</li>';
+    document.getElementById('timesLog').innerHTML = s.events.filter(e => e.type === 'timeout' || e.type === 'delay').map(eventLine).join('') || '<li>Sin tiempos ni demoras</li>';
+    document.getElementById('cardsLog').innerHTML = s.events.filter(e => e.type === 'admonition' || e.type === 'delay').map(eventLine).join('') || '<li>Sin sanciones</li>';
+    document.getElementById('obsBox').textContent = s.observations || 'Sin observaciones.';
+    document.getElementById('statGrid').innerHTML = `
+        <div><b>${s.team1_points}-${s.team2_points}</b><span>Marcador set</span></div>
+        <div><b>${s.sets_team1}-${s.sets_team2}</b><span>Sets</span></div>
+        <div><b>${s.left.has_ball ? s.left.name : s.right.name}</b><span>Pelota / saque</span></div>
+        <div><b>${s.elapsed_label}</b><span>Minuto</span></div>
+        <div><b>${s.events.filter(e => e.type === 'timeout').length}</b><span>Tiempos</span></div>
+        <div><b>${s.events.filter(e => e.type === 'switch').length}</b><span>Switch</span></div>
+    `;
 }
 
-async function updateMatchStatus() {
-    if (!CURRENT_MATCH_ID) return;
-    try {
-        const response = await fetch(`/api/match/${CURRENT_MATCH_ID}`);
-        const data = await response.json();
-
-        const statusEl = document.getElementById('matchStatus');
-        if (statusEl) {
-            statusEl.className = `status-badge status-${data.status}`;
-            statusEl.textContent = data.status;
-        }
-
-        const winnerEl = document.getElementById('winnerName');
-        if (winnerEl) {
-            winnerEl.textContent = data.winner_name || (data.status === 'completed' ? 'Por definir' : '—');
-        }
-
-        const completeBtn = document.getElementById('completeMatchBtn');
-        if (completeBtn && data.status === 'completed') {
-            completeBtn.style.display = 'none';
-        }
-
-        if (data.sets) {
-            updateSetTotals(data.sets);
-            data.sets.forEach(setData => {
-                const setCard = document.querySelector(`.set-card[data-set="${setData.set_number}"]`);
-                if (setCard) {
-                    const t1 = setCard.querySelector('.team1-points');
-                    const t2 = setCard.querySelector('.team2-points');
-                    const cb = setCard.querySelector('.set-completed-checkbox');
-                    if (t1) t1.value = setData.team1_points;
-                    if (t2) t2.value = setData.team2_points;
-                    if (cb) cb.checked = setData.completed;
-                }
-            });
-            updateSetTotals(data.sets);
-        }
-    } catch(e) {}
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const container = document.querySelector('.scoreboard-container');
-    CURRENT_MATCH_ID = container ? parseInt(container.getAttribute('data-match-id')) : null;
-
-    document.querySelectorAll('.btn-update-set').forEach(button => {
-        button.addEventListener('click', function() {
-            updateSet(parseInt(this.dataset.matchId), parseInt(this.dataset.setNumber));
-        });
+document.querySelectorAll('.ref-tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.ref-tabs button').forEach(b => b.classList.toggle('is-on', b === btn));
+        document.querySelectorAll('.ref-panel').forEach(p => p.hidden = p.id !== 'panel-' + btn.dataset.panel);
     });
-
-    const addSetBtn = document.getElementById('addSetBtn');
-    if (addSetBtn) {
-        addSetBtn.addEventListener('click', function() {
-            addSet(parseInt(this.dataset.matchId));
-        });
-    }
-
-    const completeMatchBtn = document.getElementById('completeMatchBtn');
-    if (completeMatchBtn) {
-        completeMatchBtn.addEventListener('click', function() {
-            completeMatch(parseInt(this.dataset.matchId));
-        });
-    }
-
-    updateMatchStatus();
-    setInterval(updateMatchStatus, 3000);
 });
+
+document.getElementById('btnLeftScore').onclick = () => STATE && postLive('/referee/live/point', { team: STATE.left.team });
+document.getElementById('btnRightScore').onclick = () => STATE && postLive('/referee/live/point', { team: STATE.right.team });
+document.getElementById('btnUndo').onclick = () => postLive('/referee/live/undo');
+document.getElementById('btnLeftTimeout').onclick = () => STATE && postLive('/referee/live/timeout', { team: STATE.left.team });
+document.getElementById('btnRightTimeout').onclick = () => STATE && postLive('/referee/live/timeout', { team: STATE.right.team });
+document.getElementById('btnSwap').onclick = () => postLive('/referee/live/swap_sides');
+document.getElementById('btnCourtChange').onclick = () => postLive('/referee/live/court_change');
+document.getElementById('btnCloseSet').onclick = async () => {
+    if (!confirm('¿Cerrar el set actual con el marcador de ahora?')) return;
+    const data = await postLive('/referee/live/complete_set');
+    if (data) toast(data.completed ? 'Partido finalizado' : 'Set cerrado');
+};
+document.getElementById('btnFinishMatch').onclick = async () => {
+    if (!confirm('¿Finalizar el partido y publicar el resultado?')) return;
+    const data = await postLive('/referee/live/complete_match');
+    if (data) toast(data.winner_name ? ('Ganador: ' + data.winner_name) : 'Partido finalizado');
+};
+document.getElementById('lp0').onclick = document.getElementById('lp1').onclick = () => STATE && postLive('/referee/live/switch', { team: STATE.left.team });
+document.getElementById('rp0').onclick = document.getElementById('rp1').onclick = () => STATE && postLive('/referee/live/switch', { team: STATE.right.team });
+
+const modal = document.getElementById('sanctionModal');
+function openSanction(team) {
+    sanctionTeam = team;
+    document.getElementById('sanctionType').value = 'admonition';
+    document.getElementById('sanctionNote').value = '';
+    document.getElementById('sanctionSign').value = '';
+    document.getElementById('signWrap').hidden = true;
+    modal.hidden = false;
+}
+document.getElementById('btnLeftCard').onclick = () => STATE && openSanction(STATE.left.team);
+document.getElementById('btnRightCard').onclick = () => STATE && openSanction(STATE.right.team);
+document.getElementById('sanctionType').onchange = function() {
+    document.getElementById('signWrap').hidden = this.value !== 'delay';
+};
+document.getElementById('sanctionCancel').onclick = () => { modal.hidden = true; };
+document.getElementById('sanctionOk').onclick = async () => {
+    const type = document.getElementById('sanctionType').value;
+    const note = document.getElementById('sanctionNote').value;
+    const signature = document.getElementById('sanctionSign').value;
+    let ok = null;
+    if (type === 'delay') ok = await postLive('/referee/live/delay', { team: sanctionTeam, note, signature });
+    else if (type === 'switch') ok = await postLive('/referee/live/switch', { team: sanctionTeam });
+    else ok = await postLive('/referee/live/admonition', { team: sanctionTeam, note });
+    if (ok) modal.hidden = true;
+};
+
+async function boot() {
+    const res = await fetch('/api/match/' + MATCH_ID + '/live');
+    render(await res.json());
+}
+boot();
+setInterval(async () => {
+    if (document.hidden) return;
+    const res = await fetch('/api/match/' + MATCH_ID + '/live');
+    if (res.ok) render(await res.json());
+}, 4000);
 </script>
 {% endblock %}

@@ -26,7 +26,8 @@
 
 <!-- Search & Filter -->
 <div class="search-section">
-    <button class="btn-search" onclick="toggleFilter()">BUSCAR</button>
+    <input type="search" class="team-filter-input" id="teamSearchInput" placeholder="Buscar equipo..." autocomplete="off">
+    <button class="btn-search" onclick="toggleFilter()">FILTRAR</button>
 </div>
 
 <!-- Filter Modal -->
@@ -57,10 +58,18 @@
 
         <!-- Group Filters -->
         <div style="margin-bottom: 12px; font-weight: 700; font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase;">Grupo</div>
-        <select id="groupFilter" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
+        <select id="groupFilter" style="width: 100%; padding: 10px; margin-bottom: 16px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
             <option value="all">Todos los grupos</option>
             {% for grp in groups %}
             <option value="{{ grp }}">{{ grp }}</option>
+            {% endfor %}
+        </select>
+
+        <div style="margin-bottom: 12px; font-weight: 700; font-size: 0.8rem; color: var(--gray-500); text-transform: uppercase;">Equipo</div>
+        <select id="teamFilter" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600;">
+            <option value="all">Todos los equipos</option>
+            {% for team_name in filter_teams %}
+            <option value="{{ team_name }}">{{ team_name }}</option>
             {% endfor %}
         </select>
 
@@ -98,9 +107,10 @@
             {% endif %}
 
             <div class="match-card" data-match-id="{{ match.id }}" data-status="{{ match.status }}" data-date="{{ match_date }}"
-                 data-category="{{ match.category or '' }}" data-group="{{ match.group or '' }}">
+                 data-category="{{ match.category or '' }}" data-group="{{ match.group or '' }}"
+                 data-team1="{{ match.home_team.name }}" data-team2="{{ match.away_team.name }}">
                 <div class="match-card-header">
-                    <span class="category-badge cat-{{ match.status }}">
+                    <span class="category-badge cat-{{ match.status }} js-badge">
                         {% if match.status == 'pending' %}Pendiente
                         {% elif match.status == 'active' %}EN VIVO
                         {% else %}Finalizado{% endif %}
@@ -114,17 +124,7 @@
                 </div>
                 <div class="match-card-body">
                     <div class="match-team team-home">{{ match.home_team.name }}</div>
-                    {% if match.status in ['active', 'completed'] %}
-                        <div class="match-score">
-                            {% set sets1 = match.sets | selectattr('completed') | selectattr('team1_points', 'greaterthan', 0) | list | length %}
-                            {% set sets_total = match.sets | selectattr('completed') | list | length %}
-                            <span class="score">{{ sets1 }}</span>
-                            <span class="score-divider">–</span>
-                            <span class="score">{{ sets_total - sets1 }}</span>
-                        </div>
-                    {% else %}
-                        <div class="match-time">{{ match.date.strftime('%H:%M') }}</div>
-                    {% endif %}
+                    {% include '_match_score.html' %}
                     <div class="match-team team-away">{{ match.away_team.name }}</div>
                 </div>
                 <div class="match-card-footer">
@@ -158,18 +158,23 @@ function applyFilters() {
     const status = document.getElementById('statusFilter').value;
     const category = document.getElementById('categoryFilter').value;
     const group = document.getElementById('groupFilter').value;
+    const team = (document.getElementById('teamFilter') || {}).value || 'all';
+    const search = (document.getElementById('teamSearchInput') || {}).value || '';
+    filterMatchCards(status, category, group, team, search);
+    toggleFilter();
+}
 
-    // First hide/show match cards
+function filterMatchCards(status, category, group, team, search) {
+    const q = (search || '').trim().toLowerCase();
     document.querySelectorAll('.match-card').forEach(card => {
         const matchesStatus = status === 'all' || card.dataset.status === status;
         const matchesCategory = category === 'all' || card.dataset.category === category;
         const matchesGroup = group === 'all' || card.dataset.group === group;
-
-        if (matchesStatus && matchesCategory && matchesGroup) {
-            card.style.display = '';
-        } else {
-            card.style.display = 'none';
-        }
+        const t1 = (card.dataset.team1 || '').toLowerCase();
+        const t2 = (card.dataset.team2 || '').toLowerCase();
+        const matchesTeam = team === 'all' || card.dataset.team1 === team || card.dataset.team2 === team;
+        const matchesSearch = !q || t1.includes(q) || t2.includes(q);
+        card.style.display = (matchesStatus && matchesCategory && matchesGroup && matchesTeam && matchesSearch) ? '' : 'none';
     });
 
     // Determine which dates have visible cards
@@ -205,8 +210,6 @@ function applyFilters() {
             header.style.display = 'none';
         }
     });
-
-    toggleFilter();
 }
 
 // Day Tabs
@@ -236,7 +239,19 @@ function buildDayTabs() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', buildDayTabs);
+document.addEventListener('DOMContentLoaded', () => {
+    buildDayTabs();
+    const teamSearch = document.getElementById('teamSearchInput');
+    if (teamSearch) {
+        teamSearch.addEventListener('input', () => {
+            const status = document.getElementById('statusFilter').value;
+            const category = document.getElementById('categoryFilter').value;
+            const group = document.getElementById('groupFilter').value;
+            const team = (document.getElementById('teamFilter') || {}).value || 'all';
+            filterMatchCards(status, category, group, team, teamSearch.value);
+        });
+    }
+});
 document.getElementById('filterModal').addEventListener('click', e => {
     if (e.target === document.getElementById('filterModal')) toggleFilter();
 });

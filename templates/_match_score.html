@@ -1,0 +1,31 @@
+{% set w = namespace(t1=0, t2=0, p1=0, p2=0, setn=1, has_live=false) %}
+{% for s in match.sets|sort(attribute='set_number') %}
+    {% if s.completed %}
+        {% if (s.team1_points or 0) > (s.team2_points or 0) %}
+            {% set w.t1 = w.t1 + 1 %}
+        {% elif (s.team2_points or 0) > (s.team1_points or 0) %}
+            {% set w.t2 = w.t2 + 1 %}
+        {% endif %}
+    {% else %}
+        {% if not w.has_live %}
+            {% set w.p1 = s.team1_points or 0 %}
+            {% set w.p2 = s.team2_points or 0 %}
+            {% set w.setn = s.set_number %}
+            {% set w.has_live = true %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+<div class="match-center">
+    <div class="match-time js-match-time"{% if match.status in ['active', 'completed'] %} hidden{% endif %}>{{ match.date.strftime('%H:%M') }}</div>
+    <div class="match-score-block js-score-block"{% if match.status not in ['active', 'completed'] %} hidden{% endif %}>
+        <div class="match-score">
+            <span class="score js-sets1">{{ w.t1 }}</span>
+            <span class="score-divider">–</span>
+            <span class="score js-sets2">{{ w.t2 }}</span>
+        </div>
+        <div class="live-points js-live"{% if match.status != 'active' %} hidden{% endif %}>
+            <strong><span class="js-p1">{{ w.p1 }}</span>–<span class="js-p2">{{ w.p2 }}</span></strong>
+            <small>Set {{ w.setn }}</small>
+        </div>
+    </div>
+</div>

@@ -2,9 +2,25 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from database import db
-from models import User, Team, Player, Match, Set, BannerImage
-from datetime import datetime
+from models import User, Team, Player, Match, Set, BannerImage, MatchEvent
+from collections import OrderedDict
+from datetime import datetime, timedelta
+from live_match import (
+    apply_admonition,
+    apply_complete_match,
+    apply_complete_set,
+    apply_court_change,
+    apply_delay,
+    apply_point,
+    apply_switch,
+    apply_timeout,
+    apply_undo,
+    serialize_live,
+    swap_sides,
+)
 import os
+import random
+import uuid
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-change-this')
@@ -55,6 +71,42 @@ app.jinja_env.filters['spanish_date'] = format_spanish_date
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
+def round_robin_pairs(team_ids):
+    ids = list(team_ids)
+    if len(ids) < 2:
+        return []
+    if len(ids) % 2 == 1:
+        ids.append(None)
+    n = len(ids)
+    pairs = []
+    for _ in range(n - 1):
+        for i in range(n // 2):
+            a, b = ids[i], ids[n - 1 - i]
+            if a is not None and b is not None:
+                pairs.append((a, b))
+        ids = [ids[0]] + [ids[-1]] + ids[1:-1]
+    return pairs
+
+
+def group_standings(teams):
+    grouped = {}
+    ordered = sorted(
+        teams,
+        key=lambda t: (
+            t.category or '',
+            t.group or '',
+            -(t.points or 0),
+            -((t.sets_won or 0) - (t.sets_lost or 0)),
+            t.name or '',
+        )
+    )
+    for team in ordered:
+        cat = team.category or 'Sin categoría'
+        grp = team.group or 'Sin grupo'
+        grouped.setdefault(cat, {}).setdefault(grp, []).append(team)
+    return grouped
+
 db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -78,13 +130,15 @@ def index():
     
     categories = sorted(list(set(m.category for m in matches_list if m.category)))
     groups = sorted(list(set(m.group for m in matches_list if m.group)))
+    filter_teams = [t.name for t in Team.query.order_by(Team.name).all()]
     
     return render_template('index.html', 
                            hero_banners=hero_banners, 
                            sponsor_banners=sponsor_banners, 
                            matches=matches_list,
                            categories=categories,
-                           groups=groups)
+                           groups=groups,
+                           filter_teams=filter_teams)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -119,11 +173,46 @@ def admin_dashboard():
     if current_user.role != 'admin':
         return redirect(url_for('index'))
     
-    teams = Team.query.all()
+    teams = Team.query.order_by(Team.category, Team.group, Team.name).all()
     matches = Match.query.order_by(Match.date).all()
     users = User.query.all()
     banners = BannerImage.query.order_by(BannerImage.image_type, BannerImage.position).all()
-    return render_template('admin_dashboard.html', teams=teams, matches=matches, users=users, banners=banners)
+    referees = [u for u in users if u.role == 'referee']
+    stats = {
+        'teams': len(teams),
+        'players': Player.query.count(),
+        'matches': len(matches),
+        'pending': sum(1 for m in matches if m.status == 'pending'),
+        'active': sum(1 for m in matches if m.status == 'active'),
+        'completed': sum(1 for m in matches if m.status == 'completed'),
+        'referees': len(referees),
+        'users': len(users),
+    }
+    categories = sorted({t.category for t in teams if t.category})
+    groups = sorted({t.group for t in teams if t.group})
+    matches_by_schedule = OrderedDict()
+    for m in matches:
+        day_key = m.date.strftime('%Y-%m-%d')
+        time_key = m.date.strftime('%H:%M')
+        if day_key not in matches_by_schedule:
+            matches_by_schedule[day_key] = {
+                'label': format_spanish_date(m.date),
+                'times': OrderedDict(),
+            }
+        matches_by_schedule[day_key]['times'].setdefault(time_key, []).append(m)
+    return render_template(
+        'admin_dashboard.html',
+        teams=teams,
+        matches=matches,
+        users=users,
+        banners=banners,
+        referees=referees,
+        stats=stats,
+        grouped_standings=group_standings(teams),
+        categories=categories,
+        groups=groups,
+        matches_by_schedule=matches_by_schedule,
+    )
 
 @app.route('/admin/create_user', methods=['POST'])
 @login_required
@@ -254,6 +343,48 @@ def create_match():
     
     return jsonify({'success': True, 'match': {'id': match.id}})
 
+@app.route('/admin/edit_match/<int:match_id>', methods=['POST'])
+@login_required
+def edit_match(match_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+
+    match = Match.query.get_or_404(match_id)
+    date_str = (request.form.get('date') or '').strip()
+    if date_str:
+        try:
+            match.date = datetime.strptime(date_str, '%Y-%m-%dT%H:%M')
+        except ValueError:
+            return jsonify({'error': 'Fecha inválida'}), 400
+
+    team1_id = request.form.get('team1_id')
+    team2_id = request.form.get('team2_id')
+    if team1_id and team2_id:
+        if team1_id == team2_id:
+            return jsonify({'error': 'Los equipos deben ser distintos'}), 400
+        if match.status == 'pending':
+            match.team1_id = int(team1_id)
+            match.team2_id = int(team2_id)
+
+    match.location = request.form.get('location', match.location)
+    match.cancha = request.form.get('cancha', match.cancha)
+    match.category = request.form.get('category', match.category)
+    match.group = request.form.get('group', match.group)
+    referee_id = request.form.get('referee_id') or None
+    match.referee_id = int(referee_id) if referee_id else None
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/admin/delete_match/<int:match_id>', methods=['POST'])
+@login_required
+def delete_match(match_id):
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+    match = Match.query.get_or_404(match_id)
+    db.session.delete(match)
+    db.session.commit()
+    return jsonify({'success': True})
+
 @app.route('/admin/edit_team/<int:team_id>', methods=['POST'])
 @login_required
 def edit_team(team_id):
@@ -321,6 +452,7 @@ def reset_tournament():
         return jsonify({'error': 'No autorizado'}), 403
 
     Set.query.delete()
+    MatchEvent.query.delete()
     Match.query.delete()
     Player.query.delete()
     Team.query.delete()
@@ -328,6 +460,148 @@ def reset_tournament():
     db.session.commit()
 
     return jsonify({'success': True})
+
+@app.route('/admin/random_groups', methods=['POST'])
+@login_required
+def random_groups():
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+
+    category = (request.form.get('category') or '').strip()
+    try:
+        num_groups = int(request.form.get('num_groups', 2))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Número de grupos inválido'}), 400
+    if num_groups < 2 or num_groups > 12:
+        return jsonify({'error': 'Usa entre 2 y 12 grupos'}), 400
+
+    only_unassigned = request.form.get('only_unassigned') == '1'
+    query = Team.query
+    if category:
+        query = query.filter_by(category=category)
+    teams = query.all()
+    if only_unassigned:
+        teams = [t for t in teams if not (t.group or '').strip()]
+
+    if len(teams) < num_groups:
+        return jsonify({'error': f'Se necesitan al menos {num_groups} equipos para ese sorteo'}), 400
+
+    random.shuffle(teams)
+    labels = [f'Grupo {chr(65 + i)}' for i in range(num_groups)]
+    assignments = []
+    for i, team in enumerate(teams):
+        team.group = labels[i % num_groups]
+        assignments.append({'id': team.id, 'name': team.name, 'group': team.group})
+    db.session.commit()
+    return jsonify({'success': True, 'assignments': assignments, 'groups': labels})
+
+@app.route('/admin/random_matches', methods=['POST'])
+@login_required
+def random_matches():
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+
+    category = (request.form.get('category') or '').strip()
+    group = (request.form.get('group') or '').strip()
+    date_str = (request.form.get('date') or '').strip()
+    location = (request.form.get('location') or '').strip()
+    canchas_raw = (request.form.get('canchas') or '').strip()
+    try:
+        interval = int(request.form.get('interval') or 50)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Intervalo inválido'}), 400
+    if interval < 10 or interval > 240:
+        return jsonify({'error': 'El intervalo debe ser entre 10 y 240 minutos'}), 400
+    if not date_str:
+        return jsonify({'error': 'Fecha y hora de inicio son obligatorias'}), 400
+
+    try:
+        start = datetime.strptime(date_str, '%Y-%m-%dT%H:%M')
+    except ValueError:
+        return jsonify({'error': 'Fecha inválida'}), 400
+
+    by_group = request.form.get('by_group') == '1'
+    skip_existing = request.form.get('skip_existing') != '0'
+
+    query = Team.query
+    if category:
+        query = query.filter_by(category=category)
+    if group:
+        query = query.filter_by(group=group)
+        by_group = False
+    teams = query.all()
+    if len(teams) < 2:
+        return jsonify({'error': 'Se necesitan al menos 2 equipos para generar partidos'}), 400
+
+    canchas = [c.strip() for c in canchas_raw.replace('\n', ',').split(',') if c.strip()]
+    if not canchas:
+        canchas = ['Cancha 1']
+
+    referees = User.query.filter_by(role='referee').all()
+    referee_ids = [r.id for r in referees]
+    random.shuffle(referee_ids)
+
+    existing = set()
+    if skip_existing:
+        for match in Match.query.all():
+            existing.add(frozenset([match.team1_id, match.team2_id]))
+
+    buckets = {}
+    if by_group:
+        for team in teams:
+            key = (team.category or category or '', team.group or 'Sin grupo')
+            buckets.setdefault(key, []).append(team)
+    else:
+        buckets[(category, group or (teams[0].group or ''))] = teams
+
+    created = []
+    skipped_groups = []
+    slot = 0
+    referee_i = 0
+
+    for (cat, grp), bucket in buckets.items():
+        if len(bucket) < 2:
+            skipped_groups.append(grp)
+            continue
+        pairs = round_robin_pairs([t.id for t in bucket])
+        random.shuffle(pairs)
+        for a, b in pairs:
+            pair_key = frozenset([a, b])
+            if skip_existing and pair_key in existing:
+                continue
+            if random.random() < 0.5:
+                a, b = b, a
+            court = canchas[slot % len(canchas)]
+            match_time = start + timedelta(minutes=interval * (slot // len(canchas)))
+            referee_id = None
+            if referee_ids:
+                referee_id = referee_ids[referee_i % len(referee_ids)]
+                referee_i += 1
+            team1 = Team.query.get(a)
+            match = Match(
+                team1_id=a,
+                team2_id=b,
+                date=match_time,
+                location=location,
+                cancha=court,
+                referee_id=referee_id,
+                category=cat or (team1.category if team1 else '') or '',
+                group=grp or (team1.group if team1 else '') or '',
+            )
+            db.session.add(match)
+            existing.add(pair_key)
+            created.append({'team1_id': a, 'team2_id': b})
+            slot += 1
+
+    if not created:
+        return jsonify({'error': 'No se generaron partidos. Puede que ya existan todos los cruces.'}), 400
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'created': len(created),
+        'skipped_groups': skipped_groups,
+    })
 
 # Rutas para Equipos
 @app.route('/team/dashboard')
@@ -355,7 +629,17 @@ def referee_dashboard():
         return redirect(url_for('index'))
     
     assigned_matches = Match.query.filter_by(referee_id=current_user.id).order_by(Match.date).all()
-    return render_template('referee_dashboard.html', matches=assigned_matches)
+    matches_by_schedule = OrderedDict()
+    for m in assigned_matches:
+        day_key = m.date.strftime('%Y-%m-%d')
+        time_key = m.date.strftime('%H:%M')
+        if day_key not in matches_by_schedule:
+            matches_by_schedule[day_key] = {
+                'label': format_spanish_date(m.date),
+                'times': OrderedDict(),
+            }
+        matches_by_schedule[day_key]['times'].setdefault(time_key, []).append(m)
+    return render_template('referee_dashboard.html', matches=assigned_matches, matches_by_schedule=matches_by_schedule)
 
 @app.route('/referee/match/<int:match_id>')
 @login_required
@@ -369,6 +653,123 @@ def match_scoreboard(match_id):
         return redirect(url_for('referee_dashboard'))
     
     return render_template('scoreboard.html', match=match)
+
+def _referee_match_or_error(match_id):
+    if current_user.role != 'referee':
+        return None, (jsonify({'error': 'No autorizado'}), 403)
+    match = Match.query.get_or_404(match_id)
+    if match.referee_id != current_user.id:
+        return None, (jsonify({'error': 'No estás asignado a este partido'}), 403)
+    return match, None
+
+def _live_response(match, ok, err):
+    if not ok:
+        db.session.rollback()
+        return jsonify({'error': err}), 400
+    db.session.commit()
+    if match.status == 'completed':
+        recalculate_all_team_stats()
+    db.session.refresh(match)
+    return jsonify({'success': True, **serialize_live(match)})
+
+@app.route('/api/match/<int:match_id>/live')
+@login_required
+def match_live_state(match_id):
+    match = Match.query.get_or_404(match_id)
+    if current_user.role == 'referee' and match.referee_id != current_user.id:
+        return jsonify({'error': 'No autorizado'}), 403
+    if current_user.role not in ('admin', 'referee'):
+        return jsonify({'error': 'No autorizado'}), 403
+    return jsonify(serialize_live(match))
+
+@app.route('/referee/live/point', methods=['POST'])
+@login_required
+def live_point():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_point(match, int(request.json.get('team') or 0)))
+
+@app.route('/referee/live/undo', methods=['POST'])
+@login_required
+def live_undo():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_undo(match))
+
+@app.route('/referee/live/timeout', methods=['POST'])
+@login_required
+def live_timeout():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_timeout(match, int(request.json.get('team') or 0)))
+
+@app.route('/referee/live/delay', methods=['POST'])
+@login_required
+def live_delay():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_delay(
+        match,
+        int(request.json.get('team') or 0),
+        request.json.get('note'),
+        request.json.get('signature'),
+    ))
+
+@app.route('/referee/live/admonition', methods=['POST'])
+@login_required
+def live_admonition():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_admonition(
+        match,
+        int(request.json.get('team') or 0),
+        request.json.get('note'),
+    ))
+
+@app.route('/referee/live/switch', methods=['POST'])
+@login_required
+def live_switch():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_switch(match, int(request.json.get('team') or 0)))
+
+@app.route('/referee/live/court_change', methods=['POST'])
+@login_required
+def live_court_change():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_court_change(match))
+
+@app.route('/referee/live/swap_sides', methods=['POST'])
+@login_required
+def live_swap_sides():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *swap_sides(match))
+
+@app.route('/referee/live/complete_set', methods=['POST'])
+@login_required
+def live_complete_set():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_complete_set(match))
+
+@app.route('/referee/live/complete_match', methods=['POST'])
+@login_required
+def live_complete_match():
+    match, err = _referee_match_or_error(request.json.get('match_id'))
+    if err:
+        return err
+    return _live_response(match, *apply_complete_match(match))
 
 def recalculate_all_team_stats():
     """Recalcula todas las estadísticas de los equipos desde cero basándose en partidos completados"""
@@ -542,35 +943,61 @@ def complete_match():
 def get_match_status(match_id):
     """API para obtener el estado del partido en tiempo real"""
     match = Match.query.get_or_404(match_id)
-    
+    return jsonify(public_match_score(match))
+
+
+@app.route('/api/matches/scores')
+def get_all_match_scores():
+    matches_list = Match.query.order_by(Match.date).all()
+    return jsonify([public_match_score(m) for m in matches_list])
+
+
+def public_match_score(match):
+    sets_sorted = sorted(match.sets, key=lambda s: s.set_number)
     sets_data = []
-    for s in match.sets:
-        sets_data.append({
-            'set_number': s.set_number,
-            'team1_points': s.team1_points,
-            'team2_points': s.team2_points,
-            'completed': s.completed
-        })
-    
-    # Calcular sets ganados
     sets_team1 = 0
     sets_team2 = 0
-    for s in match.sets:
+    for s in sets_sorted:
+        sets_data.append({
+            'set_number': s.set_number,
+            'team1_points': s.team1_points or 0,
+            'team2_points': s.team2_points or 0,
+            'completed': bool(s.completed),
+        })
         if s.completed:
-            if s.team1_points > s.team2_points:
+            if (s.team1_points or 0) > (s.team2_points or 0):
                 sets_team1 += 1
-            elif s.team2_points > s.team1_points:
+            elif (s.team2_points or 0) > (s.team1_points or 0):
                 sets_team2 += 1
-    
-    return jsonify({
+
+    current = next((s for s in sets_sorted if not s.completed), None)
+    if current:
+        cur_t1 = current.team1_points or 0
+        cur_t2 = current.team2_points or 0
+        set_number = current.set_number
+    elif sets_sorted:
+        cur_t1 = sets_sorted[-1].team1_points or 0
+        cur_t2 = sets_sorted[-1].team2_points or 0
+        set_number = sets_sorted[-1].set_number
+    else:
+        cur_t1 = cur_t2 = 0
+        set_number = 1
+
+    return {
         'match_id': match.id,
         'status': match.status,
         'winner_id': match.winner_id,
         'winner_name': match.winner.name if match.winner else None,
         'sets': sets_data,
         'sets_team1': sets_team1,
-        'sets_team2': sets_team2
-    })
+        'sets_team2': sets_team2,
+        'team1_points': cur_t1,
+        'team2_points': cur_t2,
+        'set_number': set_number,
+        'serve_team': match.serve_team,
+        'team1_name': match.home_team.name if match.home_team else '',
+        'team2_name': match.away_team.name if match.away_team else '',
+    }
 
 @app.route('/matches')
 def matches():
@@ -579,12 +1006,14 @@ def matches():
     
     categories = sorted(list(set(m.category for m in matches_list if m.category)))
     groups = sorted(list(set(m.group for m in matches_list if m.group)))
+    filter_teams = [t.name for t in Team.query.order_by(Team.name).all()]
     
     return render_template('matches.html', 
                            matches=matches_list, 
                            sponsor_banners=sponsor_banners,
                            categories=categories,
-                           groups=groups)
+                           groups=groups,
+                           filter_teams=filter_teams)
 
 @app.route('/teams')
 def teams():
@@ -716,13 +1145,28 @@ def init_db():
     with app.app_context():
         db.create_all()
         
-        # Migración automática para agregar columnas si no existen
-        for table, col in [
-            ("teams", "category"), ("teams", '"group"'),
-            ("matches", "category"), ("matches", '"group"'), ("matches", "cancha")
+        # Migración automática para agregar columnas si no existen.
+        # TIMESTAMP (no DATETIME) para que funcione en Postgres y SQLite.
+        for table, col, coltype in [
+            ("teams", "category", "VARCHAR(50)"),
+            ("teams", '"group"', "VARCHAR(50)"),
+            ("matches", "category", "VARCHAR(50)"),
+            ("matches", '"group"', "VARCHAR(50)"),
+            ("matches", "cancha", "VARCHAR(50)"),
+            ("matches", "serve_team", "INTEGER"),
+            ("matches", "left_is_team1", "BOOLEAN"),
+            ("matches", "started_at", "TIMESTAMP"),
+            ("matches", "timeout_t1", "BOOLEAN"),
+            ("matches", "timeout_t2", "BOOLEAN"),
+            ("matches", "switch_t1", "BOOLEAN"),
+            ("matches", "switch_t2", "BOOLEAN"),
+            ("matches", "observations", "TEXT"),
+            ("sets", "court_change_pending", "BOOLEAN"),
+            ("sets", "court_changed", "BOOLEAN"),
+            ("sets", "sudden_death", "BOOLEAN"),
         ]:
             try:
-                db.session.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {col} VARCHAR(50)"))
+                db.session.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}"))
                 db.session.commit()
             except Exception:
                 db.session.rollback()

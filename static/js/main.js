@@ -147,44 +147,62 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Función para actualizar estados de partidos en tiempo real
 async function updateMatches() {
-    const matchCards = document.querySelectorAll('.match-card');
-    
-    for (const card of matchCards) {
-        const matchId = card.dataset.matchId;
-        if (!matchId) continue;
-        
-        try {
-            const response = await fetch(`/api/match/${matchId}`);
-            if (!response.ok) continue;
-            
-            const data = await response.json();
-            const statusIndicator = card.querySelector('.status-indicator');
-            const statusText = statusIndicator?.querySelector('span') || statusIndicator;
-            
-            // Actualizar el estado visual
+    const matchCards = document.querySelectorAll('.match-card[data-match-id]');
+    if (!matchCards.length) return;
+
+    try {
+        const response = await fetch('/api/matches/scores');
+        if (!response.ok) return;
+        const scores = await response.json();
+        const byId = {};
+        scores.forEach(s => { byId[s.match_id] = s; });
+
+        const labels = { pending: 'Pendiente', active: 'EN VIVO', completed: 'Finalizado' };
+        const footerLabels = { pending: 'Pendiente', active: 'En Vivo', completed: 'Completado' };
+
+        matchCards.forEach(card => {
+            const data = byId[parseInt(card.dataset.matchId, 10)];
+            if (!data) return;
+
             const oldStatus = card.dataset.status;
             card.dataset.status = data.status;
-            
+
+            const badge = card.querySelector('.js-badge, .category-badge');
+            if (badge) {
+                badge.className = `category-badge cat-${data.status} js-badge`;
+                badge.textContent = labels[data.status] || data.status;
+            }
+
+            const statusIndicator = card.querySelector('.status-indicator');
             if (statusIndicator) {
-                const statusLabel = {
-                    'pending': 'Pendiente',
-                    'active': 'En Vivo',
-                    'completed': 'Completado'
-                };
-                
-                statusIndicator.textContent = statusLabel[data.status] || data.status;
+                statusIndicator.textContent = footerLabels[data.status] || data.status;
                 statusIndicator.className = `status-indicator status-${data.status}`;
-                
-                // Animación cuando cambia el estado
                 if (oldStatus && oldStatus !== data.status) {
                     statusIndicator.style.animation = 'pulse 0.6s ease';
-                    setTimeout(() => {
-                        statusIndicator.style.animation = '';
-                    }, 600);
+                    setTimeout(() => { statusIndicator.style.animation = ''; }, 600);
                 }
             }
-        } catch (error) {
-            console.error('Error al actualizar partido:', error);
-        }
+
+            const timeEl = card.querySelector('.js-match-time');
+            const scoreBlock = card.querySelector('.js-score-block');
+            const liveEl = card.querySelector('.js-live');
+            const showScore = data.status === 'active' || data.status === 'completed';
+            if (timeEl) timeEl.hidden = showScore;
+            if (scoreBlock) scoreBlock.hidden = !showScore;
+            if (liveEl) liveEl.hidden = data.status !== 'active';
+
+            const s1 = card.querySelector('.js-sets1');
+            const s2 = card.querySelector('.js-sets2');
+            if (s1) s1.textContent = data.sets_team1;
+            if (s2) s2.textContent = data.sets_team2;
+            const p1 = card.querySelector('.js-p1');
+            const p2 = card.querySelector('.js-p2');
+            if (p1) p1.textContent = data.team1_points;
+            if (p2) p2.textContent = data.team2_points;
+            const liveSmall = liveEl && liveEl.querySelector('small');
+            if (liveSmall) liveSmall.textContent = 'Set ' + data.set_number;
+        });
+    } catch (error) {
+        console.error('Error al actualizar partidos:', error);
     }
 }
