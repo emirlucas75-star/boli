@@ -13,14 +13,13 @@
     {% if qualified %}
     <section class="qualify-section">
         <h2>Pasan a la final</h2>
-        <p>Los {{ qualify_per_group }} primeros de cada grupo clasifican (o los que el admin marcó como CLASIFICA).</p>
+        <p>Los {{ qualify_per_group }} primeros de cada grupo.</p>
         <div class="qualify-grid">
             {% for row in qualified %}
             <article class="qualify-card">
-                <span class="qualify-rank">{{ row.rank }}º · {{ row.zone_label }}</span>
+                <span class="qualify-rank">{{ row.rank }}º</span>
                 <strong>{{ row.team.name }}</strong>
-                <small>{{ row.category }} · {{ row.group }}</small>
-                <span>{{ row.pg }}PG-{{ row.pp }}PP · Dif set {% if row.diff > 0 %}+{% endif %}{{ row.diff }} · {{ row.win_pct }}%</span>
+                <small>{{ row.category }}{% if row.group and row.group != 'Sin grupo' %} · {{ row.group }}{% endif %}</small>
             </article>
             {% endfor %}
         </div>
@@ -29,11 +28,39 @@
 
     {% if standings_board %}
         {% for cat in standings_board %}
-            <div class="stats-category" style="padding: 0 16px;">
+            <div class="stats-category stand-block">
                 <h3>{{ cat.name }}</h3>
                 {% for grp in cat.groups %}
                     <h4>{{ grp.name }}</h4>
-                    <div class="admin-table-wrap stand-sheet-wrap">
+                    <div class="rank-list">
+                        {% for row in grp.rows %}
+                        <article class="rank-card {% if row.zone == 'clasifica' %}is-final{% elif row.pj or row.team.projection %}{% if row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}{% endif %}">
+                            <div class="rank-top">
+                                <span class="rank-pos">{{ row.rank }}</span>
+                                <div class="rank-id">
+                                    <strong>{{ row.team.name }}</strong>
+                                    {% if row.team.coach %}<small>{{ row.team.coach }}</small>{% endif %}
+                                </div>
+                                {% if row.pj or row.team.projection %}
+                                <span class="qual-badge {% if row.zone != 'clasifica' %}is-risk{% endif %}">{{ row.zone_label }}</span>
+                                {% else %}
+                                <span class="qual-badge is-wait">Sin jugar</span>
+                                {% endif %}
+                            </div>
+                            <div class="rank-stats">
+                                <div><b>{{ row.pj }}</b><span>PJ</span></div>
+                                <div><b>{{ row.pg }}-{{ row.pp }}</b><span>PG-PP</span></div>
+                                <div><b>{% if row.diff > 0 %}+{% endif %}{{ row.diff }}</b><span>Dif set</span></div>
+                                <div><b>{% if row.pdiff > 0 %}+{% endif %}{{ row.pdiff }}</b><span>Dif pts</span></div>
+                                <div><b>{{ row.sf }}-{{ row.sc }}</b><span>Sets</span></div>
+                                <div><b>{{ row.pf }}-{{ row.pc }}</b><span>Puntos</span></div>
+                                <div><b>{{ row.win_pct }}%</b><span>Victorias</span></div>
+                                <div><b>{{ row.pending }}</b><span>Pend.</span></div>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    <div class="admin-table-wrap stand-sheet-wrap stand-desktop">
                         <table class="stand-sheet">
                             <thead>
                                 <tr>
@@ -55,7 +82,7 @@
                             </thead>
                             <tbody>
                                 {% for row in grp.rows %}
-                                <tr class="{% if row.zone == 'clasifica' %}is-final{% elif row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}">
+                                <tr class="{% if row.zone == 'clasifica' %}is-final{% elif row.pj or row.team.projection %}{% if row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}{% endif %}">
                                     <td>{{ row.rank }}</td>
                                     <td class="stand-name">
                                         <strong>{{ row.team.name }}</strong>
@@ -81,7 +108,6 @@
                 {% endfor %}
             </div>
         {% endfor %}
-        <p class="stats-legend" style="padding: 0 16px;">PJ = jugados · PG/PP = ganados/perdidos · Sets y Pts a favor/en contra · Pend. = partidos por jugar. Verde = CLASIFICA · Rojo = EN RIESGO.</p>
     {% else %}
         <div class="no-teams">
             <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 48px; opacity: 0.5; margin-bottom: 12px;">

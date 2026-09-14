@@ -41,30 +41,26 @@
 
     <div class="team-matches">
         <h2>Próximos Partidos</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Local</th>
-                    <th>Visitante</th>
-                    <th>Lugar</th>
-                    <th>Árbitro</th>
-                    <th>Estado</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for match in matches %}
-                <tr>
-                    <td>{{ match.date.strftime('%d/%m/%Y %H:%M') }}</td>
-                    <td>{{ match.home_team.name }}</td>
-                    <td>{{ match.away_team.name }}</td>
-                    <td>{{ match.location }}{% if match.cancha %} · Cancha {{ match.cancha }}{% endif %}</td>
-                    <td>{{ match.referee.username if match.referee else 'No asignado' }}</td>
-                    <td>{{ match.status }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% if matches %}
+        <div class="team-match-list">
+            {% for match in matches %}
+            <article class="team-match-card">
+                <div class="team-match-top">
+                    <span>{{ match.date.strftime('%d/%m %H:%M') }}</span>
+                    <span class="status-badge status-{{ match.status }}">
+                        {% if match.status == 'pending' %}Pendiente
+                        {% elif match.status == 'active' %}En vivo
+                        {% else %}Finalizado{% endif %}
+                    </span>
+                </div>
+                <strong>{{ match.home_team.name }} vs {{ match.away_team.name }}</strong>
+                <small>{{ match.location }}{% if match.cancha %} · {{ match.cancha }}{% endif %}{% if match.referee %} · {{ match.referee.username }}{% endif %}</small>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--gray-400); text-align: center; padding: 20px;">No hay partidos asignados</p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

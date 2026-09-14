@@ -8,8 +8,8 @@
 <div class="admin-page">
     <div class="admin-sticky">
         <div class="admin-header">
-            <h1>Panel de administración</h1>
-            <p>Operación del torneo · {{ current_user.username }}</p>
+            <h1>Admin</h1>
+            <p>{{ current_user.username }}</p>
         </div>
         <nav class="admin-tabs" id="adminTabs" aria-label="Secciones del panel">
             <button type="button" class="admin-tab active" data-tab="stats">Resumen</button>
@@ -79,15 +79,15 @@
             <div class="standings-toolbar">
                 <div>
                     <h2>Quién va mejor</h2>
-                    <p class="admin-help">Tabla tipo voleibol. Verde = clasifica · Rojo = en riesgo. Puedes editar números y la proyección.</p>
+                    <p class="admin-help">Verde clasifica. Edita números y guarda.</p>
                 </div>
                 <div class="standings-actions">
                     <label class="qualify-control">
                         Clasifican por grupo
-                        <input type="number" id="qualifyCount" min="1" max="8" value="{{ qualify_per_group }}">
+                        <input type="number" id="qualifyCount" min="1" max="8" value="{{ qualify_per_group }}" inputmode="numeric">
                     </label>
-                    <button type="button" class="btn-secondary" id="btnRecalcStandings">Recalcular partidos</button>
-                    <button type="button" class="btn-primary" id="btnSaveStandings">Guardar tabla</button>
+                    <button type="button" class="btn-secondary" id="btnRecalcStandings">Recalcular</button>
+                    <button type="button" class="btn-primary" id="btnSaveStandings">Guardar</button>
                 </div>
             </div>
             {% if standings_board %}
@@ -96,7 +96,34 @@
                     <h3>{{ cat.name }}</h3>
                     {% for grp in cat.groups %}
                     <h4>{{ grp.name }}</h4>
-                    <div class="admin-table-wrap stand-sheet-wrap">
+                    <div class="rank-list">
+                        {% for row in grp.rows %}
+                        <article class="rank-card stand-edit-row {% if row.zone == 'clasifica' %}is-final{% elif row.pj or row.team.projection %}{% if row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}{% endif %}" data-team-id="{{ row.team.id }}">
+                            <div class="rank-top">
+                                <span class="rank-pos">{{ row.rank }}</span>
+                                <div class="rank-id">
+                                    <strong>{{ row.team.name }}</strong>
+                                    <small>Pend. {{ row.pending }} · {{ row.win_pct }}%</small>
+                                </div>
+                            </div>
+                            <div class="rank-edit">
+                                <label>PG <input class="stand-num" name="pg" type="number" min="0" value="{{ row.pg }}"></label>
+                                <label>PP <input class="stand-num" name="pp" type="number" min="0" value="{{ row.pp }}"></label>
+                                <label>Sets F <input class="stand-num" name="sf" type="number" min="0" value="{{ row.sf }}"></label>
+                                <label>Sets C <input class="stand-num" name="sc" type="number" min="0" value="{{ row.sc }}"></label>
+                                <label>Pts F <input class="stand-num" name="pf" type="number" min="0" value="{{ row.pf }}"></label>
+                                <label>Pts C <input class="stand-num" name="pc" type="number" min="0" value="{{ row.pc }}"></label>
+                            </div>
+                            <select class="stand-zone" name="projection">
+                                <option value="" {% if not row.team.projection %}selected{% endif %}>Auto ({{ row.zone_label }})</option>
+                                <option value="clasifica" {% if row.team.projection == 'clasifica' %}selected{% endif %}>CLASIFICA</option>
+                                <option value="riesgo" {% if row.team.projection == 'riesgo' %}selected{% endif %}>EN RIESGO</option>
+                                <option value="eliminado" {% if row.team.projection == 'eliminado' %}selected{% endif %}>ELIMINADO</option>
+                            </select>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    <div class="admin-table-wrap stand-sheet-wrap stand-desktop">
                         <table class="stand-sheet">
                             <thead>
                                 <tr>
@@ -118,7 +145,7 @@
                             </thead>
                             <tbody>
                                 {% for row in grp.rows %}
-                                <tr class="stand-edit-row {% if row.zone == 'clasifica' %}is-final{% elif row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}" data-team-id="{{ row.team.id }}">
+                                <tr class="stand-edit-row {% if row.zone == 'clasifica' %}is-final{% elif row.pj or row.team.projection %}{% if row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}{% endif %}" data-team-id="{{ row.team.id }}">
                                     <td>{{ row.rank }}</td>
                                     <td class="stand-name"><strong>{{ row.team.name }}</strong></td>
                                     <td>{{ row.pj }}</td>
@@ -884,7 +911,9 @@ async function saveStandings() {
     const btn = document.getElementById('btnSaveStandings');
     if (!btn) return;
     btn.disabled = true;
-    const rows = [...document.querySelectorAll('.stand-edit-row')].map(tr => ({
+    const rows = [...document.querySelectorAll('.stand-edit-row')]
+        .filter(el => el.offsetParent !== null)
+        .map(tr => ({
         id: Number(tr.dataset.teamId),
         pg: tr.querySelector('[name="pg"]').value,
         pp: tr.querySelector('[name="pp"]').value,

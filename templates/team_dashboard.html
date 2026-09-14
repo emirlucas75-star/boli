@@ -11,22 +11,22 @@
     {% endif %}
 
     <!-- Team Stats Cards -->
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 0 16px 20px;">
-        <div style="background: var(--white); border-radius: var(--radius-lg); padding: 14px; text-align: center; border: 1px solid var(--gray-200); box-shadow: var(--shadow-xs);">
-            <div style="font-size: 1.5rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--primary);">{{ team.points }}</div>
-            <div style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--gray-400); letter-spacing: 0.5px; margin-top: 2px;">Puntos</div>
+    <div class="mini-stats">
+        <div class="mini-stat">
+            <b>{{ team.points }}</b>
+            <span>Puntos</span>
         </div>
-        <div style="background: var(--white); border-radius: var(--radius-lg); padding: 14px; text-align: center; border: 1px solid var(--gray-200); box-shadow: var(--shadow-xs);">
-            <div style="font-size: 1.5rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--success);">{{ team.wins }}</div>
-            <div style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--gray-400); letter-spacing: 0.5px; margin-top: 2px;">Victorias</div>
+        <div class="mini-stat">
+            <b>{{ team.wins }}</b>
+            <span>Victorias</span>
         </div>
-        <div style="background: var(--white); border-radius: var(--radius-lg); padding: 14px; text-align: center; border: 1px solid var(--gray-200); box-shadow: var(--shadow-xs);">
-            <div style="font-size: 1.5rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--danger);">{{ team.losses }}</div>
-            <div style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--gray-400); letter-spacing: 0.5px; margin-top: 2px;">Derrotas</div>
+        <div class="mini-stat">
+            <b>{{ team.losses }}</b>
+            <span>Derrotas</span>
         </div>
-        <div style="background: var(--white); border-radius: var(--radius-lg); padding: 14px; text-align: center; border: 1px solid var(--gray-200); box-shadow: var(--shadow-xs);">
-            <div style="font-size: 1.5rem; font-weight: 900; font-family: 'Outfit', sans-serif; color: var(--accent);">{{ team.sets_won }}/{{ team.sets_lost }}</div>
-            <div style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--gray-400); letter-spacing: 0.5px; margin-top: 2px;">Sets G/P</div>
+        <div class="mini-stat">
+            <b>{{ team.sets_won }}/{{ team.sets_lost }}</b>
+            <span>Sets G/P</span>
         </div>
     </div>
 
@@ -68,37 +68,30 @@
     <div class="team-matches">
         <h2>Partidos</h2>
         {% if matches %}
-        <div style="overflow-x: auto;">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Rival</th>
-                        <th>Lugar</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody id="matchesTableBody">
-                    {% for match in matches %}
-                    <tr data-match-id="{{ match.id }}">
-                        <td style="white-space:nowrap;">{{ match.date.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td>
-                            {% if match.home_team.id == team.id %}
-                                <span style="font-size:0.7rem; background:var(--primary-muted); color:var(--primary); padding: 2px 6px; border-radius: 4px; font-weight:700;">LOCAL</span>
-                                vs {{ match.away_team.name }}
-                            {% else %}
-                                <span style="font-size:0.7rem; background:var(--gray-100); color:var(--gray-500); padding: 2px 6px; border-radius: 4px; font-weight:700;">VISITA</span>
-                                vs {{ match.home_team.name }}
-                            {% endif %}
-                        </td>
-                        <td style="color:var(--gray-500); font-size:0.82rem;">{{ match.location }}{% if match.cancha %} · Cancha {{ match.cancha }}{% endif %}</td>
-                        <td>
-                            <span class="status-badge status-{{ match.status }}" data-status="{{ match.status }}">{{ match.status }}</span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="team-match-list" id="matchesTableBody">
+            {% for match in matches %}
+            <article class="team-match-card" data-match-id="{{ match.id }}">
+                <div class="team-match-top">
+                    <span>{{ match.date.strftime('%d/%m %H:%M') }}</span>
+                    <span class="status-badge status-{{ match.status }}" data-status="{{ match.status }}">
+                        {% if match.status == 'pending' %}Pendiente
+                        {% elif match.status == 'active' %}En vivo
+                        {% else %}Finalizado{% endif %}
+                    </span>
+                </div>
+                <strong>
+                    {% if match.home_team.id == team.id %}
+                        vs {{ match.away_team.name }}
+                    {% else %}
+                        vs {{ match.home_team.name }}
+                    {% endif %}
+                </strong>
+                <small>
+                    {% if match.home_team.id == team.id %}Local{% else %}Visita{% endif %}
+                    · {{ match.location }}{% if match.cancha %} · {{ match.cancha }}{% endif %}
+                </small>
+            </article>
+            {% endfor %}
         </div>
         {% else %}
         <p style="color: var(--gray-400); text-align: center; padding: 20px;">No hay partidos asignados</p>
@@ -108,16 +101,17 @@
 
 <script>
 async function updateMatchesStatus() {
-    const matchRows = document.querySelectorAll('#matchesTableBody tr[data-match-id]');
+    const matchRows = document.querySelectorAll('#matchesTableBody [data-match-id]');
     for (const row of matchRows) {
         try {
             const matchId = row.getAttribute('data-match-id');
             const response = await fetch(`/api/match/${matchId}`);
             const data = await response.json();
             const badge = row.querySelector('.status-badge');
+            const labels = { pending: 'Pendiente', active: 'En vivo', completed: 'Finalizado' };
             if (badge) {
                 badge.className = `status-badge status-${data.status}`;
-                badge.textContent = data.status;
+                badge.textContent = labels[data.status] || data.status;
             }
         } catch(e) {}
     }
