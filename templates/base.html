@@ -39,6 +39,7 @@
                     <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Ingresar</a>
                 {% endif %}
             </div>
+            <span class="live-pill nav-live"><i class="live-dot" aria-hidden="true"></i>Torneo en vivo</span>
             {% if current_user.is_authenticated %}
             <a class="nav-logout" href="{{ url_for('logout') }}">Salir</a>
             {% endif %}

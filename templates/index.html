@@ -1,36 +1,10 @@
 {% extends "base.html" %}
+{% from "_carousel.html" import brand_coverflow, hero_strip %}
 
 {% block title %}VoleyTournament - Programación{% endblock %}
 
 {% block content %}
-<div class="page-top">
-    <div class="page-top-copy">
-        <p>Torneo en vivo</p>
-        <h1>Programación</h1>
-    </div>
-</div>
-
-{% if hero_banners %}
-<div class="poster-banner">
-    <img src="{{ url_for('static', filename='uploads/' + hero_banners[0].filename) }}" alt="{{ hero_banners[0].title or 'Torneo de voleibol' }}">
-    {% if hero_banners[0].title %}
-    <span class="poster-caption">{{ hero_banners[0].title }}</span>
-    {% endif %}
-</div>
-{% endif %}
-
-{% if sponsor_banners %}
-<section class="sponsor-rail" aria-label="Patrocinadores">
-    <p class="sponsor-rail-label">Patrocinadores</p>
-    <div class="sponsor-rail-track">
-        {% for banner in sponsor_banners %}
-        <figure class="sponsor-logo">
-            <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or 'Patrocinador' }}">
-        </figure>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
+{{ hero_strip(hero_banners) }}
 
 <div class="feed-toolbar">
     <input type="search" class="team-filter-input" id="teamSearchInput" placeholder="Buscar equipo..." autocomplete="off">
@@ -174,6 +148,8 @@
     <p class="stats-legend">Los 2 primeros de cada grupo pasan a la final. Pts · PJ · V · D · Dif. de sets</p>
     <div id="standings-preview"></div>
 </div>
+
+{{ brand_coverflow(sponsor_banners, 'Patrocinadores', 'sponsor') }}
 
 <script>
 // Filter functionality

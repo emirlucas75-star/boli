@@ -1,0 +1,55 @@
+{% macro hero_strip(banners) %}
+{% if banners %}
+<section class="img-carousel img-carousel-hero" data-carousel data-count="{{ banners|length }}"{% if banners|length > 1 %} data-autoplay="4500"{% endif %}>
+    <div class="img-carousel-viewport">
+        <div class="img-carousel-track">
+            {% for banner in banners %}
+            <figure class="img-carousel-slide">
+                <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or 'Banner principal' }}">
+                {% if banner.title %}
+                <figcaption>{{ banner.title }}</figcaption>
+                {% endif %}
+            </figure>
+            {% endfor %}
+        </div>
+        {% if banners|length > 1 %}
+        <button type="button" class="img-carousel-nav is-prev" aria-label="Anterior"></button>
+        <button type="button" class="img-carousel-nav is-next" aria-label="Siguiente"></button>
+        <div class="img-carousel-dots" role="tablist" aria-label="Banner principal">
+            {% for banner in banners %}
+            <button type="button" class="img-carousel-dot{% if loop.first %} is-on{% endif %}" aria-label="Imagen {{ loop.index }}"></button>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+{% endmacro %}
+
+{% macro brand_coverflow(banners, label='Patrocinadores', kind='sponsor') %}
+{% if banners %}
+<section class="coverflow coverflow-{{ kind }}" data-coverflow data-autoplay="4500">
+    <div class="coverflow-head">
+        <span>{{ label }}</span>
+        <span class="coverflow-count"><b>01</b> / {{ '%02d'|format(banners|length) }}</span>
+    </div>
+    <div class="coverflow-stage">
+        <button type="button" class="coverflow-btn is-prev" aria-label="Anterior"></button>
+        <div class="coverflow-track">
+            {% for banner in banners %}
+            <article class="coverflow-card{% if loop.first %} is-active{% endif %}" data-i="{{ loop.index0 }}">
+                <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or label }}">
+                {% if banner.title %}
+                <p>{{ banner.title }}</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        <button type="button" class="coverflow-btn is-next" aria-label="Siguiente"></button>
+    </div>
+    {% if banners|length > 1 %}
+    <div class="coverflow-bar" aria-hidden="true"><i></i></div>
+    {% endif %}
+</section>
+{% endif %}
+{% endmacro %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_carousel.html" import brand_coverflow %}
 {% block title %}Partidos - VoleyTournament{% endblock %}
 
 {% block content %}
@@ -8,19 +9,6 @@
         <h1>Partidos</h1>
     </div>
 </div>
-
-{% if sponsor_banners %}
-<section class="sponsor-rail" aria-label="Patrocinadores">
-    <p class="sponsor-rail-label">Patrocinadores</p>
-    <div class="sponsor-rail-track">
-        {% for banner in sponsor_banners %}
-        <figure class="sponsor-logo">
-            <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or 'Patrocinador' }}">
-        </figure>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
 
 <div class="feed-toolbar">
     <input type="search" class="team-filter-input" id="teamSearchInput" placeholder="Buscar equipo..." autocomplete="off">
@@ -158,6 +146,8 @@
     </div>
     {% endif %}
 </div>
+
+{{ brand_coverflow(sponsor_banners, 'Patrocinadores', 'sponsor') }}
 
 <script>
 function toggleFilter() {

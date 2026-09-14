@@ -85,54 +85,169 @@ if (window.location.pathname === '/teams') {
     setInterval(updateStandings, 30000);
 }
 
-// Sponsor Carousel
-let currentSlide = 0;
-let carouselInterval;
+function initCoverflows() {
+    document.querySelectorAll('[data-coverflow]').forEach((root) => {
+        const cards = [...root.querySelectorAll('.coverflow-card')];
+        const countEl = root.querySelector('.coverflow-count b');
+        const bar = root.querySelector('.coverflow-bar i');
+        const n = cards.length;
+        if (!n) return;
 
-function updateCarousel() {
-    const carousel = document.querySelector('.sponsor-carousel-inner');
-    const dots = document.querySelectorAll('.carousel-dot');
-    
-    if (carousel) {
-        const slideCount = carousel.querySelectorAll('.sponsor-banner').length;
-        if (slideCount > 1) {
-            carousel.style.transform = `translateX(-${currentSlide * 100}%)`;
-            
-            // Update dots
-            dots.forEach((dot, index) => {
-                dot.classList.toggle('active', index === currentSlide);
+        let index = 0;
+        let timer = null;
+        const delay = Number(root.dataset.autoplay || 0);
+
+        const paint = () => {
+            cards.forEach((card, idx) => {
+                card.classList.remove('is-active', 'is-prev', 'is-next');
+                if (idx === index) {
+                    card.classList.add('is-active');
+                } else if (n > 2 && idx === (index - 1 + n) % n) {
+                    card.classList.add('is-prev');
+                } else if (n > 1 && idx === (index + 1) % n) {
+                    card.classList.add('is-next');
+                }
             });
+            if (countEl) countEl.textContent = String(index + 1).padStart(2, '0');
+            if (bar) {
+                bar.style.animation = 'none';
+                void bar.offsetWidth;
+                bar.style.animation = '';
+            }
+        };
+
+        const go = (delta) => {
+            index = (index + delta + n) % n;
+            paint();
+            start();
+        };
+
+        const start = () => {
+            if (n < 2 || !delay) return;
+            clearInterval(timer);
+            timer = setInterval(() => go(1), delay);
+        };
+
+        const stop = () => clearInterval(timer);
+
+        const prevBtn = root.querySelector('.coverflow-btn.is-prev');
+        const nextBtn = root.querySelector('.coverflow-btn.is-next');
+        if (n < 2) {
+            if (prevBtn) prevBtn.hidden = true;
+            if (nextBtn) nextBtn.hidden = true;
         }
-    }
+
+        prevBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            go(-1);
+        });
+        nextBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            go(1);
+        });
+        prevBtn?.addEventListener('pointerdown', (e) => e.stopPropagation());
+        nextBtn?.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+        let startX = null;
+        const stage = root.querySelector('.coverflow-stage');
+        stage?.addEventListener('pointerdown', (e) => {
+            startX = e.clientX;
+            stop();
+        });
+        stage?.addEventListener('pointerup', (e) => {
+            if (startX == null) return;
+            const dx = e.clientX - startX;
+            startX = null;
+            if (dx > 40) go(-1);
+            else if (dx < -40) go(1);
+            else start();
+        });
+        stage?.addEventListener('pointercancel', () => {
+            startX = null;
+            start();
+        });
+
+        root.addEventListener('mouseenter', stop);
+        root.addEventListener('mouseleave', start);
+
+        paint();
+        start();
+    });
 }
 
-function goToSlide(index) {
-    const carousel = document.querySelector('.sponsor-carousel-inner');
-    if (carousel) {
-        const slideCount = carousel.querySelectorAll('.sponsor-banner').length;
-        currentSlide = index % slideCount;
-        updateCarousel();
-        
-        // Reset auto-play
-        clearInterval(carouselInterval);
-        startAutoplay();
-    }
-}
+document.addEventListener('DOMContentLoaded', initCoverflows);
+document.addEventListener('DOMContentLoaded', initHeroCarousel);
 
-function nextSlide() {
-    const carousel = document.querySelector('.sponsor-carousel-inner');
-    if (carousel) {
-        const slideCount = carousel.querySelectorAll('.sponsor-banner').length;
-        currentSlide = (currentSlide + 1) % slideCount;
-        updateCarousel();
-    }
-}
+function initHeroCarousel() {
+    document.querySelectorAll('[data-carousel]').forEach((root) => {
+        const track = root.querySelector('.img-carousel-track');
+        const slides = [...root.querySelectorAll('.img-carousel-slide')];
+        const dots = [...root.querySelectorAll('.img-carousel-dot')];
+        if (!track || slides.length < 2) return;
 
-function startAutoplay() {
-    const carousel = document.querySelector('.sponsor-carousel-inner');
-    if (carousel && carousel.querySelectorAll('.sponsor-banner').length > 1) {
-        carouselInterval = setInterval(nextSlide, 5000);
-    }
+        let index = 0;
+        let timer = null;
+        const delay = Number(root.dataset.autoplay || 0);
+
+        const go = (i) => {
+            index = (i + slides.length) % slides.length;
+            track.scrollTo({ left: slides[index].offsetLeft, behavior: 'smooth' });
+            dots.forEach((dot, di) => dot.classList.toggle('is-on', di === index));
+        };
+
+        const start = () => {
+            if (!delay) return;
+            clearInterval(timer);
+            timer = setInterval(() => go(index + 1), delay);
+        };
+
+        const stop = () => clearInterval(timer);
+
+        root.querySelector('.img-carousel-nav.is-prev')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            go(index - 1);
+            start();
+        });
+        root.querySelector('.img-carousel-nav.is-next')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            go(index + 1);
+            start();
+        });
+        dots.forEach((dot, i) => {
+            dot.addEventListener('click', () => {
+                go(i);
+                start();
+            });
+        });
+
+        track.addEventListener('scroll', () => {
+            const mid = track.scrollLeft + track.clientWidth / 2;
+            let best = 0;
+            let dist = Infinity;
+            slides.forEach((slide, i) => {
+                const center = slide.offsetLeft + slide.offsetWidth / 2;
+                const d = Math.abs(center - mid);
+                if (d < dist) {
+                    dist = d;
+                    best = i;
+                }
+            });
+            if (best !== index) {
+                index = best;
+                dots.forEach((dot, di) => dot.classList.toggle('is-on', di === index));
+            }
+        }, { passive: true });
+
+        track.addEventListener('pointerdown', stop);
+        track.addEventListener('pointerup', start);
+        root.addEventListener('mouseenter', stop);
+        root.addEventListener('mouseleave', start);
+
+        go(0);
+        start();
+    });
 }
 
 window.selectedCancha = 'all';
@@ -198,8 +313,6 @@ function currentCancha() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    updateCarousel();
-    startAutoplay();
     renderCanchaChips();
     
     // Actualizar partidos cada 3 segundos si estamos en una página con partidos
