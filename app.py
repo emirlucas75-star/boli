@@ -2,8 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from database import db
-from models import User, Team, Player, Match, Set, BannerImage, MatchEvent
-from collections import OrderedDict
+from models import User, Team, Player, Match, Set, BannerImage, MatchEvent, Setting
+from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from live_match import (
     apply_admonition,
@@ -90,6 +90,45 @@ def round_robin_pairs(team_ids):
     return pairs
 
 
+QUALIFY_PER_GROUP = 2
+
+
+def get_qualify_per_group():
+    row = Setting.query.filter_by(key='qualify_per_group').first()
+    try:
+        return max(1, min(8, int(row.value))) if row else QUALIFY_PER_GROUP
+    except (TypeError, ValueError):
+        return QUALIFY_PER_GROUP
+
+
+def set_qualify_per_group(n):
+    n = max(1, min(8, int(n)))
+    row = Setting.query.filter_by(key='qualify_per_group').first()
+    if not row:
+        db.session.add(Setting(key='qualify_per_group', value=str(n)))
+    else:
+        row.value = str(n)
+    return n
+
+
+def match_stat_extras(matches):
+    extras = defaultdict(lambda: {'pending': 0, 'pf': 0, 'pc': 0})
+    for match in matches or []:
+        for team_id, is_home in ((match.team1_id, True), (match.team2_id, False)):
+            if match.status != 'completed':
+                extras[team_id]['pending'] += 1
+            for s in match.sets or []:
+                t1 = s.team1_points or 0
+                t2 = s.team2_points or 0
+                if is_home:
+                    extras[team_id]['pf'] += t1
+                    extras[team_id]['pc'] += t2
+                else:
+                    extras[team_id]['pf'] += t2
+                    extras[team_id]['pc'] += t1
+    return extras
+
+
 def group_standings(teams):
     grouped = {}
     ordered = sorted(
@@ -97,8 +136,10 @@ def group_standings(teams):
         key=lambda t: (
             t.category or '',
             t.group or '',
-            -(t.points or 0),
+            -(t.wins or 0),
             -((t.sets_won or 0) - (t.sets_lost or 0)),
+            -((t.points_for or 0) - (t.points_against or 0)),
+            -(t.sets_won or 0),
             t.name or '',
         )
     )
@@ -107,6 +148,60 @@ def group_standings(teams):
         grp = team.group or 'Sin grupo'
         grouped.setdefault(cat, {}).setdefault(grp, []).append(team)
     return grouped
+
+
+def build_standings_board(teams, matches=None, qualify=None):
+    if qualify is None:
+        qualify = get_qualify_per_group()
+    extras = match_stat_extras(matches)
+    board = []
+    qualified = []
+    grouped = group_standings(teams)
+    for cat, groups in grouped.items():
+        cat_item = {'name': cat, 'groups': []}
+        for grp, group_teams in groups.items():
+            rows = []
+            for team in group_teams:
+                extra = extras.get(team.id, {'pending': 0, 'pf': 0, 'pc': 0})
+                sf = team.sets_won or 0
+                sc = team.sets_lost or 0
+                pf = extra['pf'] or team.points_for or 0
+                pc = extra['pc'] or team.points_against or 0
+                pg = team.wins or 0
+                pp = team.losses or 0
+                pj = pg + pp
+                rows.append({
+                    'team': team,
+                    'pj': pj,
+                    'pg': pg,
+                    'pp': pp,
+                    'pts': team.points or 0,
+                    'wins': pg,
+                    'losses': pp,
+                    'sf': sf,
+                    'sc': sc,
+                    'diff': sf - sc,
+                    'pf': pf,
+                    'pc': pc,
+                    'pdiff': pf - pc,
+                    'win_pct': round((pg / pj) * 100) if pj else 0,
+                    'pending': extra['pending'],
+                })
+            rows.sort(key=lambda r: (-r['pg'], -r['diff'], -r['pdiff'], -r['sf'], -r['pf'], r['team'].name or ''))
+            ranked = []
+            for i, row in enumerate(rows):
+                auto_zone = 'clasifica' if i < qualify else 'riesgo'
+                zone = (row['team'].projection or auto_zone).lower()
+                row['rank'] = i + 1
+                row['zone'] = zone
+                row['qualified'] = zone == 'clasifica'
+                row['zone_label'] = 'CLASIFICA' if zone == 'clasifica' else ('ELIMINADO' if zone == 'eliminado' else 'EN RIESGO')
+                ranked.append(row)
+                if row['qualified']:
+                    qualified.append({**row, 'category': cat, 'group': grp})
+            cat_item['groups'].append({'name': grp, 'rows': ranked})
+        board.append(cat_item)
+    return board, qualified
 
 db.init_app(app)
 login_manager = LoginManager()
@@ -181,6 +276,7 @@ def admin_dashboard():
     users = User.query.all()
     banners = BannerImage.query.order_by(BannerImage.image_type, BannerImage.position).all()
     referees = [u for u in users if u.role == 'referee']
+    standings_board, qualified = build_standings_board(teams, matches)
     stats = {
         'teams': len(teams),
         'players': Player.query.count(),
@@ -190,6 +286,8 @@ def admin_dashboard():
         'completed': sum(1 for m in matches if m.status == 'completed'),
         'referees': len(referees),
         'users': len(users),
+        'qualified': len(qualified),
+        'sets_played': sum((t.sets_won or 0) + (t.sets_lost or 0) for t in teams) // 2,
     }
     categories = sorted({t.category for t in teams if t.category})
     groups = sorted({t.group for t in teams if t.group})
@@ -212,6 +310,9 @@ def admin_dashboard():
         referees=referees,
         stats=stats,
         grouped_standings=group_standings(teams),
+        standings_board=standings_board,
+        qualified=qualified,
+        qualify_per_group=get_qualify_per_group(),
         categories=categories,
         groups=groups,
         matches_by_schedule=matches_by_schedule,
@@ -425,6 +526,46 @@ def edit_team(team_id):
             'group': team.group
         }
     })
+
+@app.route('/admin/standings/save', methods=['POST'])
+@login_required
+def save_standings():
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+    data = request.get_json(silent=True) or {}
+    if data.get('qualify') is not None:
+        try:
+            set_qualify_per_group(data.get('qualify'))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'El número de clasificados no es válido'}), 400
+    for row in data.get('rows') or []:
+        team = Team.query.get(row.get('id'))
+        if not team:
+            continue
+        def num(key, current):
+            try:
+                return int(row.get(key))
+            except (TypeError, ValueError):
+                return current
+        team.wins = max(0, num('pg', team.wins or 0))
+        team.losses = max(0, num('pp', team.losses or 0))
+        team.sets_won = max(0, num('sf', team.sets_won or 0))
+        team.sets_lost = max(0, num('sc', team.sets_lost or 0))
+        team.points_for = max(0, num('pf', team.points_for or 0))
+        team.points_against = max(0, num('pc', team.points_against or 0))
+        team.points = team.wins * 3
+        zone = (row.get('projection') or '').strip().lower()
+        team.projection = zone if zone in ('clasifica', 'riesgo', 'eliminado') else None
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/admin/standings/recalc', methods=['POST'])
+@login_required
+def recalc_standings():
+    if current_user.role != 'admin':
+        return jsonify({'error': 'No autorizado'}), 403
+    recalculate_all_team_stats()
+    return jsonify({'success': True})
 
 @app.route('/admin/delete_team/<int:team_id>', methods=['POST'])
 @login_required
@@ -764,7 +905,10 @@ def live_serve():
     match, err = _referee_match_or_error(request.json.get('match_id'))
     if err:
         return err
-    return _live_response(match, *apply_serve(match, int(request.json.get('team') or 0)))
+    payload = request.json or {}
+    slot = payload.get('slot')
+    slot = int(slot) if slot is not None and str(slot) != '' else None
+    return _live_response(match, *apply_serve(match, int(payload.get('team') or 0), slot))
 
 @app.route('/referee/live/complete_set', methods=['POST'])
 @login_required
@@ -792,6 +936,8 @@ def recalculate_all_team_stats():
         team.losses = 0
         team.sets_won = 0
         team.sets_lost = 0
+        team.points_for = 0
+        team.points_against = 0
     
     # Recalcular basándose en partidos completados
     completed_matches = Match.query.filter_by(status='completed').all()
@@ -808,10 +954,16 @@ def recalculate_all_team_stats():
         sets_team2 = 0
         
         for s in match.sets:
+            t1p = s.team1_points or 0
+            t2p = s.team2_points or 0
+            team1.points_for += t1p
+            team1.points_against += t2p
+            team2.points_for += t2p
+            team2.points_against += t1p
             if s.completed:
-                if s.team1_points > s.team2_points:
+                if t1p > t2p:
                     sets_team1 += 1
-                elif s.team2_points > s.team1_points:
+                elif t2p > t1p:
                     sets_team2 += 1
         
         # Determinar ganador y actualizar estadísticas
@@ -1037,18 +1189,14 @@ def teams():
         (Team.sets_won - Team.sets_lost).desc()
     ).all()
     
-    # Group them by category and group
-    grouped_teams = {}
-    for t in teams_list:
-        cat = t.category or "Sin Categoría"
-        grp = t.group or "Sin Grupo"
-        if cat not in grouped_teams:
-            grouped_teams[cat] = {}
-        if grp not in grouped_teams[cat]:
-            grouped_teams[cat][grp] = []
-        grouped_teams[cat][grp].append(t)
-        
-    return render_template('teams.html', grouped_teams=grouped_teams)
+    standings_board, qualified = build_standings_board(teams_list, Match.query.all())
+    return render_template(
+        'teams.html',
+        standings_board=standings_board,
+        qualified=qualified,
+        qualify_per_group=get_qualify_per_group(),
+        grouped_teams=group_standings(teams_list),
+    )
 
 @app.route('/standings')
 def standings():
@@ -1066,17 +1214,22 @@ def standings():
         (Team.sets_won - Team.sets_lost).desc()
     ).all()
     
-    return jsonify([{
-        'id': t.id,
-        'name': t.name,
-        'points': t.points,
-        'wins': t.wins,
-        'losses': t.losses,
-        'sets_won': t.sets_won,
-        'sets_lost': t.sets_lost,
-        'category': t.category,
-        'group': t.group
-    } for t in teams_list])
+    payload = []
+    for t in teams_list:
+        payload.append({
+            'id': t.id,
+            'name': t.name,
+            'points': t.points or 0,
+            'wins': t.wins or 0,
+            'losses': t.losses or 0,
+            'sets_won': t.sets_won or 0,
+            'sets_lost': t.sets_lost or 0,
+            'diff': (t.sets_won or 0) - (t.sets_lost or 0),
+            'pj': (t.wins or 0) + (t.losses or 0),
+            'category': t.category,
+            'group': t.group,
+        })
+    return jsonify(payload)
 
 # ===== Rutas de gestión de imágenes/banners =====
 @app.route('/admin/upload_banner', methods=['POST'])
@@ -1163,10 +1316,14 @@ def init_db():
         for table, col, coltype in [
             ("teams", "category", "VARCHAR(50)"),
             ("teams", '"group"', "VARCHAR(50)"),
+            ("teams", "points_for", "INTEGER"),
+            ("teams", "points_against", "INTEGER"),
+            ("teams", "projection", "VARCHAR(20)"),
             ("matches", "category", "VARCHAR(50)"),
             ("matches", '"group"', "VARCHAR(50)"),
             ("matches", "cancha", "VARCHAR(50)"),
             ("matches", "serve_team", "INTEGER"),
+            ("matches", "serve_slot", "INTEGER"),
             ("matches", "left_is_team1", "BOOLEAN"),
             ("matches", "started_at", "TIMESTAMP"),
             ("matches", "timeout_t1", "BOOLEAN"),

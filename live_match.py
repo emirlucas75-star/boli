@@ -82,17 +82,47 @@ def ensure_started(match):
     return True, None
 
 
-def apply_serve(match, team):
+def apply_serve(match, team, slot=None):
     if match.status == 'completed':
         return False, 'El partido ya terminó'
     if team not in (1, 2):
         return False, 'Equipo inválido'
     match.serve_team = team
+    if slot in (0, 1):
+        match.serve_slot = slot
+    elif match.serve_slot not in (0, 1):
+        match.serve_slot = 0
     if match.left_is_team1 is None:
         match.left_is_team1 = True
     current = next((s for s in match.sets if not s.completed), None)
-    log_event(match, current, 'serve', team=team, note='Saque asignado por el árbitro')
+    who = 'jugador 1' if (match.serve_slot or 0) == 0 else 'jugador 2'
+    log_event(match, current, 'serve', team=team, note=f'Saque: {who}')
     return True, None
+
+
+def maybe_finish_match(match):
+    wins1, wins2 = set_wins(match)
+    if wins1 >= SETS_TO_WIN:
+        match.winner_id = match.team1_id
+        match.status = 'completed'
+        log_event(match, None, 'match_complete', team=1, note='Partido ganado')
+        return True
+    if wins2 >= SETS_TO_WIN:
+        match.winner_id = match.team2_id
+        match.status = 'completed'
+        log_event(match, None, 'match_complete', team=2, note='Partido ganado')
+        return True
+    return False
+
+
+def set_has_winner(current):
+    t1 = current.team1_points or 0
+    t2 = current.team2_points or 0
+    if t1 == t2:
+        return False
+    if t1 >= SUDDEN_DEATH_AT and t2 >= SUDDEN_DEATH_AT:
+        return True
+    return (t1 >= SET_POINTS or t2 >= SET_POINTS) and abs(t1 - t2) >= 2
 
 
 def ensure_current_set(match):
@@ -125,6 +155,8 @@ def close_current_set(match, current):
     t2 = current.team2_points or 0
     if t1 == t2:
         return False, 'El set está empatado; anota un punto o desempata antes de cerrarlo'
+    if not set_has_winner(current):
+        return False, 'El set sigue abierto: se gana a 12 con diferencia de 2 (cambio de cancha cada 7 puntos)'
     current.completed = True
     current.winner = match.team1_id if t1 > t2 else match.team2_id
     current.court_change_pending = False
@@ -194,15 +226,13 @@ def apply_set_rules(match, current, scoring_team):
         return 'set'
 
     if (
-        not current.court_changed
-        and not current.court_change_pending
+        not current.court_change_pending
         and not current.sudden_death
-        and (t1 == COURT_CHANGE_AT or t2 == COURT_CHANGE_AT)
-        and t1 <= COURT_CHANGE_AT
-        and t2 <= COURT_CHANGE_AT
+        and (t1 + t2) > 0
+        and (t1 + t2) % COURT_CHANGE_AT == 0
     ):
         current.court_change_pending = True
-        log_event(match, current, 'court_change_due')
+        log_event(match, current, 'court_change_due', note=f'Cambio de cancha a los {t1 + t2} puntos')
         return 'court'
 
     return None
@@ -218,7 +248,7 @@ def apply_point(match, team):
     if not current:
         return False, 'El partido ya no tiene sets por jugar'
     if current.court_change_pending:
-        return False, 'Debes aceptar el cambio de cancha (7 puntos)'
+        return False, 'Debes aceptar el cambio de cancha (cada 7 puntos)'
 
     held_serve = match.serve_team == team
     if team == 1:
@@ -227,6 +257,8 @@ def apply_point(match, team):
         current.team2_points = (current.team2_points or 0) + 1
 
     match.serve_team = team
+    if match.serve_slot not in (0, 1):
+        match.serve_slot = 0
     log_event(match, current, 'point', team=team)
 
     if held_serve:
@@ -312,7 +344,7 @@ def apply_court_change(match):
     match.left_is_team1 = not bool(match.left_is_team1)
     current.court_change_pending = False
     current.court_changed = True
-    log_event(match, current, 'court_change', note='Cambio de cancha a los 7 puntos')
+    log_event(match, current, 'court_change', note='Cambio de cancha cada 7 puntos')
     return True, None
 
 
@@ -417,6 +449,7 @@ def serialize_live(match):
             'points': t1 if team_no == 1 else t2,
             'sets': wins1 if team_no == 1 else wins2,
             'has_ball': match.serve_team == team_no,
+            'serve_slot': match.serve_slot if match.serve_slot in (0, 1) else 0,
             'timeout_used': timeout_used,
             'players': court_players(team, flipped),
         }
@@ -437,11 +470,13 @@ def serialize_live(match):
         'sets_team1': wins1,
         'sets_team2': wins2,
         'serve_team': match.serve_team or 1,
+        'serve_slot': match.serve_slot if match.serve_slot in (0, 1) else 0,
         'left_is_team1': left_is_t1,
         'court_change_pending': bool(current.court_change_pending) if current else False,
         'court_changed': bool(current.court_changed) if current else False,
         'sudden_death': bool(current.sudden_death) if current else False,
         'locked': bool(current.court_change_pending) if current else False,
+        'set_can_close': bool(current and set_has_winner(current) and not current.completed),
         'completed': match.status == 'completed',
         'left': side_payload(1 if left_is_t1 else 2),
         'right': side_payload(2 if left_is_t1 else 1),

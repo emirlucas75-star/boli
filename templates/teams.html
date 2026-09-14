@@ -2,71 +2,86 @@
 {% block title %}Clasificación - VoleyTournament{% endblock %}
 
 {% block content %}
-<div class="teams-page">
-    <h1>Clasificación</h1>
+<div class="page-top">
+    <div class="page-top-copy">
+        <p>Fase de grupos</p>
+        <h1>Clasificación</h1>
+    </div>
+</div>
 
-    {% if grouped_teams %}
-        {% for cat, groups in grouped_teams.items() %}
-            <div class="category-section" style="margin-bottom: 30px;">
-                <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 800; color: var(--primary); margin: 24px 16px 10px; border-bottom: 2px solid var(--primary); padding-bottom: 6px;">
-                    Categoría: {{ cat }}
-                </h2>
-                
-                {% for grp, teams in groups.items() %}
-                    <div class="group-section" style="margin: 0 16px 20px;">
-                        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--dark); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                            <span style="display:inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--secondary);"></span>
-                            {{ grp }}
-                        </h3>
-                        <div class="team-players" style="margin-bottom: 20px;">
-                            <div style="overflow-x: auto;">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Equipo</th>
-                                            <th>Pts</th>
-                                            <th>V</th>
-                                            <th>D</th>
-                                            <th>SF</th>
-                                            <th>SC</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for team in teams %}
-                                        <tr>
-                                            <td><strong style="color: var(--gray-400);">{{ loop.index }}</strong></td>
-                                            <td>
-                                                <div>
-                                                    <strong style="color: var(--dark);">{{ team.name }}</strong>
-                                                    {% if loop.index == 1 %}<span style="font-size:0.75rem; color:var(--warning); font-weight:800; margin-left:4px;">1º</span>
-                                                    {% elif loop.index == 2 %}<span style="font-size:0.75rem; color:var(--gray-400); font-weight:800; margin-left:4px;">2º</span>
-                                                    {% elif loop.index == 3 %}<span style="font-size:0.75rem; color:#CD7F32; font-weight:800; margin-left:4px;">3º</span>{% endif %}
-                                                </div>
-                                                <div style="font-size:0.72rem; color:var(--gray-500);">{{ team.coach }}</div>
-                                            </td>
-                                            <td><strong style="color: var(--primary); font-size: 1rem;">{{ team.points }}</strong></td>
-                                            <td style="color: var(--success); font-weight: 700;">{{ team.wins }}</td>
-                                            <td style="color: var(--danger); font-weight: 700;">{{ team.losses }}</td>
-                                            <td>{{ team.sets_won }}</td>
-                                            <td>{{ team.sets_lost }}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+<div class="teams-page">
+    {% if qualified %}
+    <section class="qualify-section">
+        <h2>Pasan a la final</h2>
+        <p>Los {{ qualify_per_group }} primeros de cada grupo clasifican (o los que el admin marcó como CLASIFICA).</p>
+        <div class="qualify-grid">
+            {% for row in qualified %}
+            <article class="qualify-card">
+                <span class="qualify-rank">{{ row.rank }}º · {{ row.zone_label }}</span>
+                <strong>{{ row.team.name }}</strong>
+                <small>{{ row.category }} · {{ row.group }}</small>
+                <span>{{ row.pg }}PG-{{ row.pp }}PP · Dif set {% if row.diff > 0 %}+{% endif %}{{ row.diff }} · {{ row.win_pct }}%</span>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if standings_board %}
+        {% for cat in standings_board %}
+            <div class="stats-category" style="padding: 0 16px;">
+                <h3>{{ cat.name }}</h3>
+                {% for grp in cat.groups %}
+                    <h4>{{ grp.name }}</h4>
+                    <div class="admin-table-wrap stand-sheet-wrap">
+                        <table class="stand-sheet">
+                            <thead>
+                                <tr>
+                                    <th>Pos</th>
+                                    <th>Equipo</th>
+                                    <th>PJ</th>
+                                    <th>PG</th>
+                                    <th>PP</th>
+                                    <th>Sets F</th>
+                                    <th>Sets C</th>
+                                    <th>Dif Set</th>
+                                    <th>Pts F</th>
+                                    <th>Pts C</th>
+                                    <th>Dif Pts</th>
+                                    <th>% Vic.</th>
+                                    <th>Pend.</th>
+                                    <th>Proyección</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in grp.rows %}
+                                <tr class="{% if row.zone == 'clasifica' %}is-final{% elif row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}">
+                                    <td>{{ row.rank }}</td>
+                                    <td class="stand-name">
+                                        <strong>{{ row.team.name }}</strong>
+                                        {% if row.team.coach %}<div class="stand-coach">{{ row.team.coach }}</div>{% endif %}
+                                    </td>
+                                    <td>{{ row.pj }}</td>
+                                    <td>{{ row.pg }}</td>
+                                    <td>{{ row.pp }}</td>
+                                    <td>{{ row.sf }}</td>
+                                    <td>{{ row.sc }}</td>
+                                    <td>{% if row.diff > 0 %}+{% endif %}{{ row.diff }}</td>
+                                    <td>{{ row.pf }}</td>
+                                    <td>{{ row.pc }}</td>
+                                    <td>{% if row.pdiff > 0 %}+{% endif %}{{ row.pdiff }}</td>
+                                    <td>{{ row.win_pct }}%</td>
+                                    <td>{{ row.pending }}</td>
+                                    <td><span class="qual-badge {% if row.zone != 'clasifica' %}is-risk{% endif %}">{{ row.zone_label }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 {% endfor %}
             </div>
         {% endfor %}
-        <div style="margin: 0 16px; padding: 8px 0; border-top: 1px solid var(--gray-100); font-size: 0.72rem; color: var(--gray-400); display: flex; gap: 16px; flex-wrap: wrap;">
-            <span>Pts = Puntos</span>
-            <span>V = Victorias</span>
-            <span>D = Derrotas</span>
-            <span>SF = Sets ganados</span>
-            <span>SC = Sets perdidos</span>
-        </div>
+        <p class="stats-legend" style="padding: 0 16px;">PJ = jugados · PG/PP = ganados/perdidos · Sets y Pts a favor/en contra · Pend. = partidos por jugar. Verde = CLASIFICA · Rojo = EN RIESGO.</p>
     {% else %}
         <div class="no-teams">
             <img src="/assets/pelota-de-voleibol.png" alt="" style="width: 48px; opacity: 0.5; margin-bottom: 12px;">

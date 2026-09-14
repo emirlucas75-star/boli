@@ -29,6 +29,9 @@ class Team(db.Model):
     losses = db.Column(db.Integer, default=0)
     sets_won = db.Column(db.Integer, default=0)
     sets_lost = db.Column(db.Integer, default=0)
+    points_for = db.Column(db.Integer, default=0)
+    points_against = db.Column(db.Integer, default=0)
+    projection = db.Column(db.String(20), nullable=True)  # clasifica, riesgo, eliminado, None=auto
     eliminated = db.Column(db.Boolean, default=False)
     category = db.Column(db.String(50), nullable=True)
     group = db.Column(db.String(50), nullable=True)
@@ -61,6 +64,7 @@ class Match(db.Model):
     category = db.Column(db.String(50), nullable=True)
     group = db.Column(db.String(50), nullable=True)
     serve_team = db.Column(db.Integer, default=1)  # 1 local, 2 visitante
+    serve_slot = db.Column(db.Integer, default=0)  # 0 o 1: quién saca (jugador 1 / 2)
     left_is_team1 = db.Column(db.Boolean, default=True)
     started_at = db.Column(db.DateTime)
     timeout_t1 = db.Column(db.Boolean, default=False)
@@ -113,3 +117,10 @@ class BannerImage(db.Model):
     position = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Setting(db.Model):
+    __tablename__ = 'settings'
+
+    key = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.String(200))

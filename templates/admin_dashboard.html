@@ -8,8 +8,8 @@
 <div class="admin-page">
     <div class="admin-sticky">
         <div class="admin-header">
-            <h1>Panel Admin</h1>
-            <p>Hola, <strong>{{ current_user.username }}</strong></p>
+            <h1>Panel de administración</h1>
+            <p>Operación del torneo · {{ current_user.username }}</p>
         </div>
         <nav class="admin-tabs" id="adminTabs" aria-label="Secciones del panel">
             <button type="button" class="admin-tab active" data-tab="stats">Resumen</button>
@@ -52,39 +52,94 @@
                 <span class="stat-value">{{ stats.referees }}</span>
                 <span class="stat-label">Árbitros</span>
             </div>
+            <div class="stat-card stat-final">
+                <span class="stat-value">{{ stats.qualified }}</span>
+                <span class="stat-label">A la final</span>
+            </div>
         </div>
 
+        {% if qualified %}
         <div class="admin-section">
-            <h2>Clasificación</h2>
-            {% if grouped_standings %}
-                {% for cat, groups in grouped_standings.items() %}
+            <h2>Pasan a la final</h2>
+            <p class="admin-help">Los {{ qualify_per_group }} primeros de cada grupo. Criterio: puntos, luego diferencia de sets.</p>
+            <div class="qualify-grid">
+                {% for row in qualified %}
+                <article class="qualify-card">
+                    <span class="qualify-rank">{{ row.rank }}º</span>
+                    <strong>{{ row.team.name }}</strong>
+                    <small>{{ row.category }} · {{ row.group }}</small>
+                    <span>{{ row.pts }} pts · {{ row.pg }}PG-{{ row.pp }}PP · Dif set {% if row.diff > 0 %}+{% endif %}{{ row.diff }}</span>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="admin-section standings-panel">
+            <div class="standings-toolbar">
+                <div>
+                    <h2>Quién va mejor</h2>
+                    <p class="admin-help">Tabla tipo voleibol. Verde = clasifica · Rojo = en riesgo. Puedes editar números y la proyección.</p>
+                </div>
+                <div class="standings-actions">
+                    <label class="qualify-control">
+                        Clasifican por grupo
+                        <input type="number" id="qualifyCount" min="1" max="8" value="{{ qualify_per_group }}">
+                    </label>
+                    <button type="button" class="btn-secondary" id="btnRecalcStandings">Recalcular partidos</button>
+                    <button type="button" class="btn-primary" id="btnSaveStandings">Guardar tabla</button>
+                </div>
+            </div>
+            {% if standings_board %}
+                {% for cat in standings_board %}
                 <div class="stats-category">
-                    <h3>{{ cat }}</h3>
-                    {% for grp, group_teams in groups.items() %}
-                    <h4>{{ grp }}</h4>
-                    <div class="admin-table-wrap">
-                        <table class="admin-table">
+                    <h3>{{ cat.name }}</h3>
+                    {% for grp in cat.groups %}
+                    <h4>{{ grp.name }}</h4>
+                    <div class="admin-table-wrap stand-sheet-wrap">
+                        <table class="stand-sheet">
                             <thead>
                                 <tr>
-                                    <th>#</th>
+                                    <th>Pos</th>
                                     <th>Equipo</th>
-                                    <th>Pts</th>
-                                    <th>V</th>
-                                    <th>D</th>
-                                    <th>SF</th>
-                                    <th>SC</th>
+                                    <th>PJ</th>
+                                    <th>PG</th>
+                                    <th>PP</th>
+                                    <th>Sets F</th>
+                                    <th>Sets C</th>
+                                    <th>Dif Set</th>
+                                    <th>Pts F</th>
+                                    <th>Pts C</th>
+                                    <th>Dif Pts</th>
+                                    <th>% Vic.</th>
+                                    <th>Pend.</th>
+                                    <th>Proyección</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for team in group_teams %}
-                                <tr>
-                                    <td data-label="#">{{ loop.index }}</td>
-                                    <td data-label="Equipo"><strong>{{ team.name }}</strong></td>
-                                    <td data-label="Pts"><strong>{{ team.points or 0 }}</strong></td>
-                                    <td data-label="Victorias">{{ team.wins or 0 }}</td>
-                                    <td data-label="Derrotas">{{ team.losses or 0 }}</td>
-                                    <td data-label="Sets a favor">{{ team.sets_won or 0 }}</td>
-                                    <td data-label="Sets en contra">{{ team.sets_lost or 0 }}</td>
+                                {% for row in grp.rows %}
+                                <tr class="stand-edit-row {% if row.zone == 'clasifica' %}is-final{% elif row.zone == 'eliminado' %}is-out{% else %}is-risk{% endif %}" data-team-id="{{ row.team.id }}">
+                                    <td>{{ row.rank }}</td>
+                                    <td class="stand-name"><strong>{{ row.team.name }}</strong></td>
+                                    <td>{{ row.pj }}</td>
+                                    <td><input class="stand-num" name="pg" type="number" min="0" value="{{ row.pg }}"></td>
+                                    <td><input class="stand-num" name="pp" type="number" min="0" value="{{ row.pp }}"></td>
+                                    <td><input class="stand-num" name="sf" type="number" min="0" value="{{ row.sf }}"></td>
+                                    <td><input class="stand-num" name="sc" type="number" min="0" value="{{ row.sc }}"></td>
+                                    <td>{% if row.diff > 0 %}+{% endif %}{{ row.diff }}</td>
+                                    <td><input class="stand-num" name="pf" type="number" min="0" value="{{ row.pf }}"></td>
+                                    <td><input class="stand-num" name="pc" type="number" min="0" value="{{ row.pc }}"></td>
+                                    <td>{% if row.pdiff > 0 %}+{% endif %}{{ row.pdiff }}</td>
+                                    <td>{{ row.win_pct }}%</td>
+                                    <td>{{ row.pending }}</td>
+                                    <td>
+                                        <select class="stand-zone" name="projection">
+                                            <option value="" {% if not row.team.projection %}selected{% endif %}>Auto ({{ row.zone_label }})</option>
+                                            <option value="clasifica" {% if row.team.projection == 'clasifica' %}selected{% endif %}>CLASIFICA</option>
+                                            <option value="riesgo" {% if row.team.projection == 'riesgo' %}selected{% endif %}>EN RIESGO</option>
+                                            <option value="eliminado" {% if row.team.projection == 'eliminado' %}selected{% endif %}>ELIMINADO</option>
+                                        </select>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -93,7 +148,7 @@
                     {% endfor %}
                 </div>
                 {% endfor %}
-                <p class="stats-legend">Pts = puntos · V = victorias · D = derrotas · SF = sets a favor · SC = sets en contra</p>
+                <p class="stats-legend">PJ = jugados · PG/PP = ganados/perdidos · Sets F/C · Pts F/C = puntos de set · Pend. = partidos que faltan. Guardar deja los cambios fijos; Recalcular los vuelve a sacar de los partidos.</p>
             {% else %}
                 <div class="admin-empty">Aún no hay equipos para mostrar estadísticas.</div>
             {% endif %}
@@ -823,6 +878,55 @@ document.getElementById('editTeamForm').addEventListener('submit', saveEditTeam)
 document.getElementById('btnSaveEditTeam').addEventListener('click', function(e) {
     e.preventDefault();
     saveEditTeam(e);
+});
+
+async function saveStandings() {
+    const btn = document.getElementById('btnSaveStandings');
+    if (!btn) return;
+    btn.disabled = true;
+    const rows = [...document.querySelectorAll('.stand-edit-row')].map(tr => ({
+        id: Number(tr.dataset.teamId),
+        pg: tr.querySelector('[name="pg"]').value,
+        pp: tr.querySelector('[name="pp"]').value,
+        sf: tr.querySelector('[name="sf"]').value,
+        sc: tr.querySelector('[name="sc"]').value,
+        pf: tr.querySelector('[name="pf"]').value,
+        pc: tr.querySelector('[name="pc"]').value,
+        projection: tr.querySelector('[name="projection"]').value,
+    }));
+    try {
+        const response = await fetch('/admin/standings/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                qualify: document.getElementById('qualifyCount').value,
+                rows,
+            }),
+        });
+        const result = await response.json();
+        if (result.success) {
+            showToast('Tabla de clasificación guardada');
+            setTimeout(() => location.reload(), 600);
+        } else {
+            showToast('Error: ' + (result.error || 'No se pudo guardar'), true);
+        }
+    } catch (err) {
+        showToast('Error al guardar la tabla', true);
+    }
+    btn.disabled = false;
+}
+
+document.getElementById('btnSaveStandings')?.addEventListener('click', saveStandings);
+document.getElementById('btnRecalcStandings')?.addEventListener('click', async () => {
+    if (!confirm('¿Recalcular la tabla con los partidos jugados? Se actualizan PJ, PG, sets y puntos; la proyección que fijaste se mantiene.')) return;
+    const response = await fetch('/admin/standings/recalc', { method: 'POST' });
+    const result = await response.json();
+    if (result.success) {
+        showToast('Estadísticas recalculadas');
+        setTimeout(() => location.reload(), 600);
+    } else {
+        showToast('No se pudo recalcular', true);
+    }
 });
 
 async function deleteTeam(id, name) {

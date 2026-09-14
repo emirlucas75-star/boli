@@ -2,37 +2,34 @@
 {% block title %}Partidos - VoleyTournament{% endblock %}
 
 {% block content %}
-
-<!-- Sponsor Banner Carousel -->
-{% if sponsor_banners %}
-<div class="sponsor-carousel">
-    <div class="sponsor-carousel-inner">
-        {% for banner in sponsor_banners %}
-        <div class="sponsor-banner" data-index="{{ loop.index0 }}">
-            <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or 'Patrocinador' }}">
-        </div>
-        {% endfor %}
+<div class="page-top">
+    <div class="page-top-copy">
+        <p>Resultados</p>
+        <h1>Partidos</h1>
     </div>
-    {% if sponsor_banners|length > 1 %}
-    <div class="carousel-controls">
-        <button class="carousel-dot" onclick="goToSlide(0)"></button>
-        {% for i in range(1, sponsor_banners|length) %}
-        <button class="carousel-dot" onclick="goToSlide({{ i }})"></button>
-        {% endfor %}
-    </div>
-    {% endif %}
 </div>
+
+{% if sponsor_banners %}
+<section class="sponsor-rail" aria-label="Patrocinadores">
+    <p class="sponsor-rail-label">Patrocinadores</p>
+    <div class="sponsor-rail-track">
+        {% for banner in sponsor_banners %}
+        <figure class="sponsor-logo">
+            <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or 'Patrocinador' }}">
+        </figure>
+        {% endfor %}
+    </div>
+</section>
 {% endif %}
 
-<!-- Search & Filter -->
-<div class="search-section">
+<div class="feed-toolbar">
     <input type="search" class="team-filter-input" id="teamSearchInput" placeholder="Buscar equipo..." autocomplete="off">
-    <button class="btn-search" onclick="toggleFilter()">FILTRAR</button>
-</div>
-<div class="cancha-filter-bar">
-    <span class="cancha-filter-label">Cancha</span>
-    <div class="cancha-chips" id="canchaChips"></div>
-    <p class="cancha-empty-hint" id="canchaEmptyHint" hidden>No hay canchas asignadas aún</p>
+    <button class="btn-search" type="button" onclick="toggleFilter()">Filtrar</button>
+    <div class="cancha-filter-bar">
+        <span class="cancha-filter-label">Cancha</span>
+        <div class="cancha-chips" id="canchaChips"></div>
+        <p class="cancha-empty-hint" id="canchaEmptyHint" hidden>No hay canchas asignadas aún</p>
+    </div>
 </div>
 
 <!-- Filter Modal -->
@@ -96,7 +93,6 @@
 <div class="day-tabs" id="dayTabs"></div>
 
 <div class="matches-page">
-    <h1 style="padding-left:16px;">Partidos</h1>
 
     {% if matches %}
     <div class="matches-feed" id="matchesFeed">

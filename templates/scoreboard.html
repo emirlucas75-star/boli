@@ -20,12 +20,19 @@
     </div>
 
     <div class="ref-serve-box" id="serveBox">
-        <p>¿Quién saca?</p>
+        <p>Águila o sol · ¿quién saca?</p>
+        <div class="ref-coin-wrap">
+            <button type="button" class="ref-coin" id="btnCoin" aria-label="Tirar moneda">
+                <span class="ref-coin-face" id="coinFace">?</span>
+            </button>
+        </div>
+        <button type="button" class="ref-coin-throw" id="btnCoinThrow">Tirar moneda</button>
+        <small id="coinHint">Águila = equipo izquierdo · Sol = equipo derecho</small>
         <div class="ref-serve-row">
             <button type="button" class="ref-serve-btn mag" id="btnServeLeft">Saca local</button>
             <button type="button" class="ref-serve-btn wht" id="btnServeRight">Saca visitante</button>
         </div>
-        <small id="serveLabel">Toca un equipo para darle el servicio</small>
+        <small id="serveLabel">Toca un jugador (1 o 2) para ponerle el balón</small>
     </div>
 
     <div class="ref-scores">
@@ -74,7 +81,7 @@
             </div>
             <img src="/assets/pelota-de-voleibol.png" class="ref-court-ball" id="courtBall" alt="">
         </div>
-        <p class="ref-hint">Toca un jugador para hacer switch. El balón pasa al que anota (el que recibe el saque).</p>
+        <p class="ref-hint">Toca el jugador 1 o 2 para pasarle el balón (quién saca). Si el mismo equipo anota, hay switch y saca el compañero.</p>
         <div class="ref-finish" id="finishBar">
             <button type="button" class="ref-btn-set" id="btnCloseSet">Cerrar set</button>
             <button type="button" class="ref-btn-end" id="btnFinishMatch">Finalizar partido</button>
@@ -96,7 +103,7 @@
     </section>
 
     <div class="ref-bar" id="courtBar" hidden>
-        <span>Cambio de cancha (7 puntos)</span>
+        <span>Cambio de cancha (cada 7 puntos)</span>
         <button type="button" id="btnCourtChange">Aceptar</button>
     </div>
 </div>
@@ -137,7 +144,7 @@ const LABELS = {
     switch: 'Switch',
     court_change: 'Cambio de cancha',
     court_change_due: 'Cambio a los 7',
-    serve: 'Saque',
+    coin_toss: 'Águila o sol',
     set_won: 'Set ganado',
     swap_sides: 'Cambio de campo',
     match_complete: 'Partido finalizado',
@@ -179,9 +186,13 @@ function render(s) {
     btnServeLeft.classList.toggle('is-on', L.has_ball);
     btnServeRight.classList.toggle('is-on', R.has_ball);
     document.getElementById('serveLabel').textContent = L.has_ball
-        ? ('Servicio: ' + L.name)
-        : ('Servicio: ' + R.name);
+        ? ('Saca ' + L.name + ' · jugador ' + ((s.serve_slot || 0) + 1))
+        : ('Saca ' + R.name + ' · jugador ' + ((s.serve_slot || 0) + 1));
+    const setPts = (L.points || 0) + (R.points || 0);
     document.getElementById('serveBox').hidden = s.completed;
+    document.getElementById('coinHint').textContent = setPts === 0
+        ? ('Águila = ' + L.name + ' · Sol = ' + R.name)
+        : ('Águila = ' + L.name + ' · Sol = ' + R.name + ' · puedes volver a tirar');
     document.getElementById('leftPoints').textContent = L.points;
     document.getElementById('rightPoints').textContent = R.points;
     document.getElementById('leftSets').textContent = L.sets;
@@ -212,17 +223,24 @@ function render(s) {
     document.getElementById('btnRightScore').disabled = s.locked || s.completed;
     const finishBar = document.getElementById('finishBar');
     if (finishBar) finishBar.hidden = s.completed;
+    document.getElementById('btnCloseSet').disabled = s.completed || !s.set_can_close;
 
     (L.players || []).forEach((p, i) => {
         const el = document.getElementById('lp' + i);
-        if (el) el.textContent = p.number;
+        if (!el) return;
+        el.textContent = p.number;
+        el.classList.toggle('is-serving', L.has_ball && (s.serve_slot || 0) === i);
     });
     (R.players || []).forEach((p, i) => {
         const el = document.getElementById('rp' + i);
-        if (el) el.textContent = p.number;
+        if (!el) return;
+        el.textContent = p.number;
+        el.classList.toggle('is-serving', R.has_ball && (s.serve_slot || 0) === i);
     });
-    document.getElementById('court').classList.toggle('ball-right', R.has_ball);
-    document.getElementById('court').classList.toggle('ball-left', L.has_ball);
+    const court = document.getElementById('court');
+    court.classList.remove('ball-left', 'ball-right', 'ball-l0', 'ball-l1', 'ball-r0', 'ball-r1');
+    const slot = s.serve_slot === 1 ? 1 : 0;
+    court.classList.add(L.has_ball ? ('ball-l' + slot) : ('ball-r' + slot));
 
         const eventLine = (e) => {
             const teamName = e.team === 1
@@ -259,13 +277,17 @@ document.getElementById('btnUndo').onclick = () => postLive('/referee/live/undo'
 document.getElementById('btnLeftTimeout').onclick = () => STATE && postLive('/referee/live/timeout', { team: STATE.left.team });
 document.getElementById('btnRightTimeout').onclick = () => STATE && postLive('/referee/live/timeout', { team: STATE.right.team });
 document.getElementById('btnSwap').onclick = () => postLive('/referee/live/swap_sides');
-document.getElementById('btnServeLeft').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team });
-document.getElementById('btnServeRight').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team });
-document.getElementById('leftName').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team });
-document.getElementById('rightName').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team });
+document.getElementById('btnServeLeft').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team, slot: STATE.serve_slot || 0 });
+document.getElementById('btnServeRight').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team, slot: STATE.serve_slot || 0 });
+document.getElementById('leftName').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team, slot: STATE.serve_slot || 0 });
+document.getElementById('rightName').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team, slot: STATE.serve_slot || 0 });
+document.getElementById('lp0').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team, slot: 0 });
+document.getElementById('lp1').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.left.team, slot: 1 });
+document.getElementById('rp0').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team, slot: 0 });
+document.getElementById('rp1').onclick = () => STATE && postLive('/referee/live/serve', { team: STATE.right.team, slot: 1 });
 document.getElementById('btnCourtChange').onclick = () => postLive('/referee/live/court_change');
 document.getElementById('btnCloseSet').onclick = async () => {
-    if (!confirm('¿Cerrar el set actual con el marcador de ahora?')) return;
+    if (!confirm('¿Cerrar el set? Solo se cierra si ya hay ganador (12 con diferencia de 2, o muerte súbita).')) return;
     const data = await postLive('/referee/live/complete_set');
     if (data) toast(data.completed ? 'Partido finalizado' : 'Set cerrado');
 };
@@ -274,8 +296,27 @@ document.getElementById('btnFinishMatch').onclick = async () => {
     const data = await postLive('/referee/live/complete_match');
     if (data) toast(data.winner_name ? ('Ganador: ' + data.winner_name) : 'Partido finalizado');
 };
-document.getElementById('lp0').onclick = document.getElementById('lp1').onclick = () => STATE && postLive('/referee/live/switch', { team: STATE.left.team });
-document.getElementById('rp0').onclick = document.getElementById('rp1').onclick = () => STATE && postLive('/referee/live/switch', { team: STATE.right.team });
+
+let coinBusy = false;
+async function throwCoin() {
+    if (!STATE || coinBusy || STATE.completed) return;
+    coinBusy = true;
+    const face = document.getElementById('coinFace');
+    const coin = document.getElementById('btnCoin');
+    coin.classList.add('is-spinning');
+    face.textContent = '?';
+    await new Promise(r => setTimeout(r, 900));
+    const aguila = Math.random() < 0.5;
+    coin.classList.remove('is-spinning');
+    face.textContent = aguila ? 'Águila' : 'Sol';
+    const team = aguila ? STATE.left.team : STATE.right.team;
+    const name = aguila ? STATE.left.name : STATE.right.name;
+    toast((aguila ? 'Águila' : 'Sol') + ' · saca ' + name);
+    await postLive('/referee/live/serve', { team, slot: STATE.serve_slot || 0 });
+    coinBusy = false;
+}
+document.getElementById('btnCoin').onclick = throwCoin;
+document.getElementById('btnCoinThrow').onclick = throwCoin;
 
 const modal = document.getElementById('sanctionModal');
 function openSanction(team) {

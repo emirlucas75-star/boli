@@ -3,60 +3,43 @@
 {% block title %}VoleyTournament - Programación{% endblock %}
 
 {% block content %}
-<!-- Hero Banner or Placeholder -->
+<div class="page-top">
+    <div class="page-top-copy">
+        <p>Torneo en vivo</p>
+        <h1>Programación</h1>
+    </div>
+</div>
+
 {% if hero_banners %}
-<div class="hero-banner">
-    <img src="{{ url_for('static', filename='uploads/' + hero_banners[0].filename) }}" alt="{{ hero_banners[0].title or 'Torneo de Voleibol' }}">
+<div class="poster-banner">
+    <img src="{{ url_for('static', filename='uploads/' + hero_banners[0].filename) }}" alt="{{ hero_banners[0].title or 'Torneo de voleibol' }}">
     {% if hero_banners[0].title %}
-    <div class="banner-overlay">
-        <h2>{{ hero_banners[0].title }}</h2>
-    </div>
+    <span class="poster-caption">{{ hero_banners[0].title }}</span>
     {% endif %}
-</div>
-{% else %}
-<div class="hero-placeholder">
-    <div class="hero-placeholder-content">
-        <div class="hero-icon">
-            <img src="/assets/voleibol.png" alt="" style="width: 64px; height: auto; margin-bottom: 12px; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));">
-        </div>
-        <h1>Torneo de Voleibol</h1>
-        <p>Programación en vivo y resultados</p>
-    </div>
 </div>
 {% endif %}
 
-<!-- Sponsor Banner Carousel -->
 {% if sponsor_banners %}
-<div class="sponsor-carousel">
-    <div class="sponsor-carousel-inner">
+<section class="sponsor-rail" aria-label="Patrocinadores">
+    <p class="sponsor-rail-label">Patrocinadores</p>
+    <div class="sponsor-rail-track">
         {% for banner in sponsor_banners %}
-        <div class="sponsor-banner" data-index="{{ loop.index0 }}">
+        <figure class="sponsor-logo">
             <img src="{{ url_for('static', filename='uploads/' + banner.filename) }}" alt="{{ banner.title or 'Patrocinador' }}">
-        </div>
+        </figure>
         {% endfor %}
     </div>
-    {% if sponsor_banners|length > 1 %}
-    <div class="carousel-controls">
-        <button class="carousel-dot" onclick="goToSlide(0)"></button>
-        {% for i in range(1, sponsor_banners|length) %}
-        <button class="carousel-dot" onclick="goToSlide({{ i }})"></button>
-        {% endfor %}
-    </div>
-    {% endif %}
-</div>
+</section>
 {% endif %}
 
-<!-- Search & Filter Bar -->
-<div class="search-section">
+<div class="feed-toolbar">
     <input type="search" class="team-filter-input" id="teamSearchInput" placeholder="Buscar equipo..." autocomplete="off">
-    <button class="btn-search" id="btnFilter" onclick="toggleFilter()">
-        FILTRAR
-    </button>
-</div>
-<div class="cancha-filter-bar">
-    <span class="cancha-filter-label">Cancha</span>
-    <div class="cancha-chips" id="canchaChips"></div>
-    <p class="cancha-empty-hint" id="canchaEmptyHint" hidden>No hay canchas asignadas aún</p>
+    <button class="btn-search" id="btnFilter" type="button" onclick="toggleFilter()">Filtrar</button>
+    <div class="cancha-filter-bar">
+        <span class="cancha-filter-label">Cancha</span>
+        <div class="cancha-chips" id="canchaChips"></div>
+        <p class="cancha-empty-hint" id="canchaEmptyHint" hidden>No hay canchas asignadas aún</p>
+    </div>
 </div>
 
 <!-- Category Filter Modal -->
@@ -187,8 +170,9 @@
 
 <!-- Standings Preview -->
 <div class="stats-preview">
-    <h2>Tabla de Posiciones</h2>
-    <div id="standings-preview" style="overflow-x: auto;"></div>
+    <h2>Clasificación</h2>
+    <p class="stats-legend">Los 2 primeros de cada grupo pasan a la final. Pts · PJ · V · D · Dif. de sets</p>
+    <div id="standings-preview"></div>
 </div>
 
 <script>
@@ -313,22 +297,26 @@ function updateStandings() {
             
             let html = '';
             for (const [cat, groups] of Object.entries(grouped)) {
-                html += `<h3 style="font-family:'Outfit',sans-serif; font-size:1.2rem; font-weight:800; color:var(--primary); margin:24px 0 10px; border-bottom: 2px solid var(--primary); padding-bottom: 6px;">Categoría: ${cat}</h3>`;
+                html += `<h3 class="stand-cat">${cat}</h3>`;
                 for (const [grp, teams] of Object.entries(groups)) {
-                    html += `<h4 style="font-family:'Outfit',sans-serif; font-size:0.95rem; font-weight:700; color:var(--dark); margin:12px 0; display:flex; align-items:center; gap:6px;"><span style="width:6px; height:6px; border-radius:50%; background:var(--secondary);"></span>${grp}</h4>`;
-                    html += '<table style="margin-bottom: 20px;"><thead><tr><th>#</th><th>Equipo</th><th>Pts</th><th>V</th><th>D</th><th>SF</th><th>SC</th></tr></thead><tbody>';
+                    html += `<h4 class="stand-grp">${grp}</h4>`;
+                    html += '<div class="admin-table-wrap"><table class="admin-table stand-table"><thead><tr><th>#</th><th>Equipo</th><th>Pts</th><th>PJ</th><th>V</th><th>D</th><th>Dif</th><th></th></tr></thead><tbody>';
                     teams.forEach((team, i) => {
-                        html += `<tr>
-                            <td><strong>${i + 1}</strong></td>
+                        const qualified = i < 2;
+                        const diff = team.diff != null ? team.diff : ((team.sets_won || 0) - (team.sets_lost || 0));
+                        const pj = team.pj != null ? team.pj : ((team.wins || 0) + (team.losses || 0));
+                        html += `<tr class="${qualified ? 'is-final' : ''}">
+                            <td>${i + 1}</td>
                             <td><strong>${team.name}</strong></td>
-                            <td><strong style="color:var(--primary)">${team.points}</strong></td>
+                            <td><strong>${team.points}</strong></td>
+                            <td>${pj}</td>
                             <td>${team.wins}</td>
                             <td>${team.losses}</td>
-                            <td>${team.sets_won}</td>
-                            <td>${team.sets_lost}</td>
+                            <td>${diff > 0 ? '+' : ''}${diff}</td>
+                            <td>${qualified ? '<span class="qual-badge">Final</span>' : ''}</td>
                         </tr>`;
                     });
-                    html += '</tbody></table>';
+                    html += '</tbody></table></div>';
                 }
             }
             preview.innerHTML = html;
